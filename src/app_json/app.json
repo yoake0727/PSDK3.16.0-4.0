@@ -1,0 +1,50 @@
+{
+    "user_app_id": "165794",
+    "firmware_version": "03.00.00.00",
+    "is_ai_rendering": "true",
+    "platform": "manifold3",
+    "name":{
+        "name_cn": "0821air",
+        "name_en": "0821air",
+        "name_jp": "0821air",
+        "name_fr": "0821air"
+    },
+    "description": {
+        "description_cn": [
+            "目标识别",
+            "目标定位",
+            "飞行器控制",
+            "航线规划"
+        ],
+        "description_en": [
+            "Target recognition",
+            "Target positioning",
+            "Aircraft control",
+            "Route planning"
+        ],
+        "description_jp": [
+            "ターゲット認識",
+            "目標定位",
+            "航空機制御",
+            "航路計画"
+        ],
+        "description_fr": [
+            "Reconnaissance des cibles",
+            "Positionnement des objectifs",
+            "Contrôle des véhicules aériens",
+            "Planification de la route aérienne"
+        ]
+    },
+    "maintainer": {
+        "maintainer_cn": "大疆创新科技有限公司",
+        "maintainer_en": "DJI Innovation Technology Co., Ltd.",
+        "maintainer_jp": "大疆イノベーションテクノロジー有限会社",
+        "maintainer_fr": "Société à Responsabilité Limitée DJI Innovation Technology"
+    },
+    "ver_min": "01.00.00.00",
+    "ver_max": "99.99.99.99",
+    "bin": "../../../../../../build/bin/dji_sdk_demo_on_manifold3_cxx",
+    "userconfig": [
+        "../../../../../../samples"
+    ]
+}

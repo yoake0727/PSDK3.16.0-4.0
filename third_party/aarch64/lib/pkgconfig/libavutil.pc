@@ -1,0 +1,14 @@
+prefix=/home/dji/Payload-SDK-3.16.0/third_party/aarch64
+exec_prefix=${prefix}
+libdir=/home/dji/Payload-SDK-3.16.0/third_party/aarch64/lib
+includedir=/home/dji/Payload-SDK-3.16.0/third_party/aarch64/include
+
+Name: libavutil
+Description: FFmpeg utility library
+Version: 56.31.100
+Requires: 
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavutil -pthread -lm
+Libs.private: 
+Cflags: -I${includedir}
