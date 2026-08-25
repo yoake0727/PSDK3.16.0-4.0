@@ -1,13 +1,13 @@
 {
-    "user_app_id": "165794",
-    "firmware_version": "03.00.00.00",
+    "user_app_id": "190806",
+    "firmware_version": "04.00.00.00",
     "is_ai_rendering": "true",
     "platform": "manifold3",
     "name":{
-        "name_cn": "0821air",
-        "name_en": "0821air",
-        "name_jp": "0821air",
-        "name_fr": "0821air"
+        "name_cn": "0825air",
+        "name_en": "0825air",
+        "name_jp": "0825air",
+        "name_fr": "0825air"
     },
     "description": {
         "description_cn": [
@@ -43,8 +43,8 @@
     },
     "ver_min": "01.00.00.00",
     "ver_max": "99.99.99.99",
-    "bin": "../../../../../../build/bin/dji_sdk_demo_on_manifold3_cxx",
+    "bin": "../../build/bin/psdk_payload_app",
     "userconfig": [
-        "../../../../../../samples"
+        ".."
     ]
 }
