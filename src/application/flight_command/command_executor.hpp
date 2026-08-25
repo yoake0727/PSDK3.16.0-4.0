@@ -18,6 +18,7 @@
 #include "dji_fc_subscription.h"
 #include "mqtt/mqtt_bridge.hpp"
 #include "simple_cache.h"
+#include "gimbal/gimbal_controller.hpp"
 
 // 前向声明
 class TelemetryPublisher;
@@ -45,7 +46,8 @@ enum class FlightCommandType
     WAYPOINT_STOP,
     CONFIRM_LANDING,
     JOYSTICK_HOLD_START,
-    JOYSTICK_HOLD_STOP
+    JOYSTICK_HOLD_STOP,
+    GIMBAL_ROTATE
 };
 
 // 命令结构体（与原版相同）
@@ -59,6 +61,10 @@ struct FlightCommand
     std::string waypoint_local_path;
     std::string reason;
     std::string flightid = "";
+    E_DjiMountPosition gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO1;
+    E_DjiGimbalRotationMode gimbal_mode = DJI_GIMBAL_ROTATION_MODE_RELATIVE_ANGLE;
+    float gimbal_pitch = 0.0F, gimbal_roll = 0.0F, gimbal_yaw = 0.0F;
+    double gimbal_time = 1.0;
 };
 
 class CommandExecutor
@@ -117,6 +123,7 @@ private:
 
     // ⭐ 新增：H30T 流控制器（原始指针，生命周期由 SystemManager 管理）
     H30tStreamController *h30t_stream_controller_ = nullptr;
+    GimbalController gimbal_controller_;
     // 工作线程与队列
     std::thread flight_worker_;
     std::atomic<bool> flight_worker_run_{false};

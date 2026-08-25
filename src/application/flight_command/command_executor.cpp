@@ -135,6 +135,26 @@ void CommandExecutor::HandleMqttCommand(const std::string &topic, const std::str
         return;
     }
     std::string cmd = j["cmd"].get<std::string>();
+    if (cmd == "gimbal_rotate")
+    {
+        FlightCommand fc;
+        fc.type = FlightCommandType::GIMBAL_ROTATE;
+        const std::string mount = j.value("mount", "nose");
+        if (mount == "nose" || mount == "payload1") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO1;
+        else if (mount == "payload2") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO2;
+        else if (mount == "payload3") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO3;
+        else { publish_ack(cmd, "error", "mount must be nose, payload1, payload2, or payload3"); return; }
+        const std::string mode = j.value("mode", "relative");
+        if (mode == "relative") fc.gimbal_mode = DJI_GIMBAL_ROTATION_MODE_RELATIVE_ANGLE;
+        else if (mode == "absolute") fc.gimbal_mode = DJI_GIMBAL_ROTATION_MODE_ABSOLUTE_ANGLE;
+        else { publish_ack(cmd, "error", "mode must be relative or absolute"); return; }
+        if (j.contains("pitch") && j["pitch"].is_number()) fc.gimbal_pitch = j["pitch"].get<float>();
+        if (j.contains("roll") && j["roll"].is_number()) fc.gimbal_roll = j["roll"].get<float>();
+        if (j.contains("yaw") && j["yaw"].is_number()) fc.gimbal_yaw = j["yaw"].get<float>();
+        if (j.contains("time") && j["time"].is_number()) fc.gimbal_time = j["time"].get<double>();
+        EnqueueFlightCommand(fc);
+        return;
+    }
     if (cmd == "h30t_source") {
         if (!h30t_stream_controller_ || !j.contains("source") || !j["source"].is_string()) {
             publish_ack(cmd, "error", "missing source or H30T controller"); return;
@@ -549,6 +569,27 @@ void CommandExecutor::FlightWorkerThread()
 
         switch (cmd.type)
         {
+        case FlightCommandType::GIMBAL_ROTATE: {
+            std::string error;
+            if (!gimbal_controller_.IsInitialized() && !gimbal_controller_.Initialize()) {
+                publish_ack("gimbal_rotate", "error", "gimbal manager init failed");
+                break;
+            }
+            const T_DjiReturnCode rc = gimbal_controller_.Rotate(
+                cmd.gimbal_mount, cmd.gimbal_mode, cmd.gimbal_pitch,
+                cmd.gimbal_roll, cmd.gimbal_yaw, cmd.gimbal_time, error);
+            if (rc == DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS)
+                publish_ack("gimbal_rotate", "ok", "rotation submitted");
+            else if (!error.empty())
+                publish_ack("gimbal_rotate", "error", error);
+            else {
+                char message[64];
+                std::snprintf(message, sizeof(message), "sdk error 0x%08llX",
+                              static_cast<unsigned long long>(rc));
+                publish_ack("gimbal_rotate", "error", message);
+            }
+            break;
+        }
         case FlightCommandType::OBTAIN_JOYSTICK_AUTH:
             if (!EnsureFlightControllerInited())
             {

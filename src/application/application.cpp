@@ -204,44 +204,44 @@ void Application::DjiUser_ApplicationStart()
 
     // attention: when the program is hand up ctrl-c will generate the coredump file
     signal(SIGTERM, DjiUser_NormalExitHandler);
-
+    // 用户信息填充与验证
     returnCode = DjiUser_FillInUserInfo(&userInfo);
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] user info validation failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Fill user info error, please check user info config.");
     }
-
+    // PSDK 核心初始化
     returnCode = DjiCore_Init(&userInfo);
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] core init failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Core init error.");
     }
-
+    // 获取飞机信息，验证飞机是否支持扩展端口
     returnCode = DjiAircraftInfo_GetBaseInfo(&aircraftInfoBaseInfo);
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] aircraft info read failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Get aircraft base info error.");
     }
-
+    // 验证飞机是否支持扩展端口
     if (aircraftInfoBaseInfo.mountPosition != DJI_MOUNT_POSITION_EXTENSION_PORT &&
         aircraftInfoBaseInfo.djiAdapterType != DJI_SDK_ADAPTER_TYPE_EPORT_V2_RIBBON_CABLE &&
         aircraftInfoBaseInfo.mountPositionType != DJI_MOUNT_POSITION_TYPE_MANIFOLD3_ONBOARD &&
         aircraftInfoBaseInfo.djiAdapterType != DJI_SDK_ADAPTER_TYPE_SKYPORT_V3) {
         throw std::runtime_error("Please run this sample on extension port or skyport v3.");
     }
-
+    // 设置应用别名和固件版本
     returnCode = DjiCore_SetAlias("PSDK_APPALIAS");
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] alias configuration failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Set alias error.");
     }
-
+    // 设置固件版本和序列号
     returnCode = DjiCore_SetFirmwareVersion(firmwareVersion);
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] firmware version configuration failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Set firmware version error.");
     }
-
+    // 设置序列号
     returnCode = DjiCore_SetSerialNumber("PSDK12345678XX");
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] serial number configuration failed, rc=0x%08llX", returnCode);
@@ -263,7 +263,7 @@ void Application::DjiUser_ApplicationStart()
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("power management init error");
     }*/
-
+    // 启动 PSDK 核心应用
     returnCode = DjiCore_ApplicationStart();
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] core application start failed, rc=0x%08llX", returnCode);
