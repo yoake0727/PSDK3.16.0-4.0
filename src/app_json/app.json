@@ -44,7 +44,5 @@
     "ver_min": "01.00.00.00",
     "ver_max": "99.99.99.99",
     "bin": "../../build/bin/psdk_payload_app",
-    "userconfig": [
-        ".."
-    ]
+    "userconfig": []
 }

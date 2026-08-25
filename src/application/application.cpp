@@ -203,7 +203,7 @@ void Application::DjiUser_ApplicationStart()
     T_DjiReturnCode returnCode;
     T_DjiAircraftInfoBaseInfo aircraftInfoBaseInfo;
     T_DjiFirmwareVersion firmwareVersion = {
-        .majorVersion = 3,
+        .majorVersion = 4,
         .minorVersion = 0,
         .modifyVersion = 0,
         .debugVersion = 0,
@@ -336,7 +336,7 @@ T_DjiReturnCode Application::DjiUser_FillInUserInfo(T_DjiUserInfo *userInfo)
         !strcmp(USER_DEVELOPER_ACCOUNT, "your_developer_account") ||
         !strcmp(USER_BAUD_RATE, "your_baud_rate")) {
         USER_LOG_ERROR(
-            "Please fill in correct user information to 'samples/sample_c++/platform/linux/nvidia_jetson/application/dji_sdk_app_info.h' file.");
+            "Please fill in correct user information to 'src/application/dji_sdk_app_info.h' file.");
         return DJI_ERROR_SYSTEM_MODULE_CODE_INVALID_PARAMETER;
     }
 
