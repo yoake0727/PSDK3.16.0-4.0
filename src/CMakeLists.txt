@@ -16,21 +16,12 @@ if (BUILD_TEST_CASES_ON MATCHES TRUE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-arcs -ftest-coverage -lgcov")
 endif ()
 
-# ======================== 修改开始 ========================
-# 原路径：../../../module_sample  →  新路径：module_sample (当前目录)
 include_directories(module_sample)
-# 原路径：../../../../sample_c/module_sample  →  已不需要，因为不再引用 sample_c
-# 原路径：../common  →  新路径：common
 include_directories(common)
-# 原路径：../manifold3/application  →  新路径：application
 include_directories(application)
-# 原路径：${CMAKE_CURRENT_LIST_DIR}/../../../../../psdk_lib/include  →  新路径：../psdk_lib/include
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/include)
-# ======================== 修改结束 ========================
 
 file(GLOB_RECURSE MODULE_SAMPLE_SRC
-    # ======================== 修改开始 ========================
-    # 原路径：../../../module_sample/liveview/*.c*  →  新路径：module_sample/liveview/*.c*
     module_sample/liveview/*.c*
     module_sample/camera_manager/*.c*
     module_sample/hms_manager/*.c*
@@ -39,14 +30,9 @@ file(GLOB_RECURSE MODULE_SAMPLE_SRC
     module_sample/flight_controller/*.c*
     module_sample/widget_manager/*.c*
     module_sample/positioning/*.c*
-    # 原路径：../../../../sample_c/module_sample/*.c  →  已删除，不再引用 sample_c
-    # ======================== 修改结束 ========================
     )
 file(GLOB_RECURSE MODULE_COMMON_SRC
-    # ======================== 修改开始 ========================
-    # 原路径：../common/*.c*  →  新路径：common/*.c*
     common/*.c*
-    # ======================== 修改结束 ========================
     )
 file(GLOB_RECURSE MODULE_HAL_SRC hal/*.c*)
 file(GLOB_RECURSE MODULE_APP_SRC application/*.c*)
@@ -56,11 +42,8 @@ set(TOOLCHAIN_NAME aarch64-linux-gnu-gcc)
 add_definitions(-DPLATFORM_ARCH_AARCH64=1)
 add_definitions(-DSYSTEM_ARCH_LINUX=1)
 
-# ======================== 修改开始 ========================
-# 原路径：${CMAKE_CURRENT_SOURCE_DIR}/../../../../..  →  新路径：${CMAKE_CURRENT_SOURCE_DIR}/..
 get_filename_component(REPOSITORY_ROOT
         "${CMAKE_CURRENT_SOURCE_DIR}/.." ABSOLUTE)
-# ======================== 修改结束 ========================
 
 set(STATIC_DEPS_ROOT "${REPOSITORY_ROOT}/third_party/aarch64")
 set(STATIC_DEPS_INCLUDE_DIR "${STATIC_DEPS_ROOT}/include")
@@ -89,11 +72,8 @@ foreach(REQUIRED_STATIC_DEPENDENCY ${REQUIRED_STATIC_DEPENDENCIES})
     endif ()
 endforeach()
 
-# ======================== 修改开始 ========================
-# 原路径：${CMAKE_CURRENT_LIST_DIR}/../../../../../psdk_lib/lib/${TOOLCHAIN_NAME}  →  新路径：${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/lib/${TOOLCHAIN_NAME}
 link_directories(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/lib/${TOOLCHAIN_NAME})
 link_libraries(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/lib/${TOOLCHAIN_NAME}/libpayloadsdk.a -lstdc++)
-# ======================== 修改结束 ========================
 
 add_executable(${PROJECT_NAME}
         ${MODULE_APP_SRC}
@@ -101,10 +81,7 @@ add_executable(${PROJECT_NAME}
         ${MODULE_COMMON_SRC}
         ${MODULE_HAL_SRC})
 
-# ======================== 修改开始 ========================
-# 原路径：${CMAKE_CURRENT_LIST_DIR}/../../../../../psdk_lib/include  →  新路径：${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/include
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/include)
-# ======================== 修改结束 ========================
 
 # Try to see if user has OpenCV installed
 find_package(OpenCV QUIET)
@@ -147,11 +124,8 @@ target_link_libraries(${PROJECT_NAME}
         m
         dl)
 
-# ======================== 修改开始 ========================
-# 原路径：${CMAKE_CURRENT_SOURCE_DIR}/../../../../../tools/build_dpk/build_dpk.sh  →  新路径：${CMAKE_CURRENT_SOURCE_DIR}/../tools/build_dpk/build_dpk.sh
 set(JSON_FILE ${CMAKE_CURRENT_SOURCE_DIR}/app_json/app.json)
 set(SCRIPT_FILE ${CMAKE_CURRENT_SOURCE_DIR}/../tools/build_dpk/build_dpk.sh)
-# ======================== 修改结束 ========================
 
 set(OUTPUT_PACKAGE ${CMAKE_BINARY_DIR}/dpk)
 

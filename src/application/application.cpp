@@ -78,12 +78,9 @@ extern "C" void SetSystemManagerForExit(SystemManager *mgr) {
 Application::Application(int argc, char **argv)
 {
     Application::DjiUser_SetupEnvironment();
-    USER_LOG_INFO("[NODE][application] environment setup completed");
     Application::DjiUser_ApplicationStart();
-    USER_LOG_INFO("[NODE][application] SDK application start completed");
 
     Osal_TaskSleepMs(3000);
-    USER_LOG_INFO("[NODE][application] constructor stabilization wait completed");
 }
 
 Application::~Application()
@@ -191,14 +188,10 @@ void Application::DjiUser_SetupEnvironment()
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         throw std::runtime_error("Add printf console error.");
     }
-
-    USER_LOG_INFO("[NODE][application] local file logger registered");
-    USER_LOG_INFO("[NODE][application] early setup completed: OSAL, USB, socket, filesystem and console logger registered");
 }
 
 void Application::DjiUser_ApplicationStart()
 {
-    USER_LOG_INFO("[NODE][application] application start begin");
     T_DjiUserInfo userInfo;
     T_DjiReturnCode returnCode;
     T_DjiAircraftInfoBaseInfo aircraftInfoBaseInfo;
@@ -217,21 +210,18 @@ void Application::DjiUser_ApplicationStart()
         USER_LOG_ERROR("[NODE][application] user info validation failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Fill user info error, please check user info config.");
     }
-    USER_LOG_INFO("[NODE][application] user info validation completed");
 
     returnCode = DjiCore_Init(&userInfo);
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] core init failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Core init error.");
     }
-    USER_LOG_INFO("[NODE][application] core initialized");
 
     returnCode = DjiAircraftInfo_GetBaseInfo(&aircraftInfoBaseInfo);
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] aircraft info read failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Get aircraft base info error.");
     }
-    USER_LOG_INFO("[NODE][application] aircraft info read completed");
 
     if (aircraftInfoBaseInfo.mountPosition != DJI_MOUNT_POSITION_EXTENSION_PORT &&
         aircraftInfoBaseInfo.djiAdapterType != DJI_SDK_ADAPTER_TYPE_EPORT_V2_RIBBON_CABLE &&
@@ -245,21 +235,18 @@ void Application::DjiUser_ApplicationStart()
         USER_LOG_ERROR("[NODE][application] alias configuration failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Set alias error.");
     }
-    USER_LOG_INFO("[NODE][application] alias configured");
 
     returnCode = DjiCore_SetFirmwareVersion(firmwareVersion);
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] firmware version configuration failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Set firmware version error.");
     }
-    USER_LOG_INFO("[NODE][application] firmware version configured");
 
     returnCode = DjiCore_SetSerialNumber("PSDK12345678XX");
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("[NODE][application] serial number configuration failed, rc=0x%08llX", returnCode);
         throw std::runtime_error("Set serial number error");
     }
-    USER_LOG_INFO("[NODE][application] serial number configured");
 
     /*returnCode = DjiTest_WidgetStartService();
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
@@ -452,7 +439,6 @@ static void DjiUser_NormalExitHandler(int signalNum) {
     if (g_exit_system_manager) {
         g_exit_system_manager->shutdown();
     }
-
     USER_LOG_INFO("TUICHU");
     exit(0);
 }

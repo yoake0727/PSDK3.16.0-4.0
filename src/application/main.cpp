@@ -23,24 +23,20 @@ int main(int argc, char **argv)
     // 1. 启动 DJI PSDK 原版应用
     signal(SIGTERM, [](int signalNum) -> void { exit(0); });
     Application application(argc, argv);
-          USER_LOG_INFO("KAISHI");
     char inputChar;
     T_DjiOsalHandler *osalHandler = DjiPlatform_GetOsalHandler();
     T_DjiReturnCode returnCode;
     E_DjiMountPosition mountPosition = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO1;
 
     // 等待 PSDK 内部线程稳定（可选，根据实际情况调整）
-    // 原版 Application 构造函数中有一个 Osal_TaskSleepMs(3000)，此处再等待 2 秒确保核心就绪
     Osal_TaskSleepMs(2000);
-    USER_LOG_INFO("[NODE][main] PSDK stabilization wait completed");
 
     // 2. 创建并初始化自定义系统管理器（MQTT，遥测，命令处理，FC 订阅，降落检测等）
     SystemManager sys_mgr;
-    USER_LOG_INFO("[NODE][main] SystemManager constructed");
     // g_system_manager = &sys_mgr;
 
     SetSystemManagerForExit(&sys_mgr);
-    USER_LOG_INFO("[NODE][main] SystemManager registered for exit handling");
+    // USER_LOG_INFO("[NODE][main] SystemManager registered for exit handling");
 
     if (!sys_mgr.init())
     {

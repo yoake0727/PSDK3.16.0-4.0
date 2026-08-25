@@ -34,8 +34,6 @@ if (USE_SYSTEM_ARCH MATCHES RTOS)
 elseif (USE_SYSTEM_ARCH MATCHES LINUX)
     add_definitions(-DSYSTEM_ARCH_LINUX)
     
-    # ======================== 修改开始 ========================
-    # 原路径：${LOCAL_INCLUDE_DIR}  →  新路径：${CMAKE_CURRENT_SOURCE_DIR}/psdk_lib/include
     include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}/psdk_lib/include
         ${CMAKE_CURRENT_SOURCE_DIR}/src/application
@@ -49,11 +47,7 @@ elseif (USE_SYSTEM_ARCH MATCHES LINUX)
         ${CMAKE_CURRENT_SOURCE_DIR}/psdk_lib/lib/aarch64-linux-gnu-gcc
         ${CMAKE_CURRENT_SOURCE_DIR}/third_party/aarch64/lib
     )
-    # ======================== 修改结束 ========================
 
-    # ======================== 修改开始 ========================
-    # 原路径：${LOCAL_LIB_DIR}/libcjson.a  →  已不需要，cjson 不在依赖中
-    # 但保留检查逻辑，改为检查必要的库
     set(PSDK_LIB ${CMAKE_CURRENT_SOURCE_DIR}/psdk_lib/lib/aarch64-linux-gnu-gcc/libpayloadsdk.a)
     set(MOSQUITTO_STATIC_LIB ${CMAKE_CURRENT_SOURCE_DIR}/third_party/aarch64/lib/libmosquitto.a)
     
@@ -64,18 +58,13 @@ elseif (USE_SYSTEM_ARCH MATCHES LINUX)
     if (NOT EXISTS ${MOSQUITTO_STATIC_LIB})
         message(FATAL_ERROR "Static library libmosquitto.a not found in third_party/aarch64/lib")
     endif()
-    # ======================== 修改结束 ========================
     
     message(STATUS "Using PSDK lib: ${PSDK_LIB}")
     message(STATUS "Using static libmosquitto: ${MOSQUITTO_STATIC_LIB}")
 
     set(EXTRA_SYS_LIBS pthread ssl crypto)
 
-    # ======================== 修改开始 ========================
-    # 原路径：add_subdirectory(samples/sample_c++/platform/linux/manifold3)
-    # 新路径：add_subdirectory(src)  →  直接添加 src 子目录
     add_subdirectory(src)
-    # ======================== 修改结束 ========================
     
     execute_process(COMMAND uname -m OUTPUT_VARIABLE DEVICE_SYSTEM_ID)
     if (DEVICE_SYSTEM_ID MATCHES x86_64)

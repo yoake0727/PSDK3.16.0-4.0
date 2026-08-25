@@ -57,18 +57,18 @@ T_DjiReturnCode SystemManager::mqttLogCallback(const uint8_t *data, uint16_t dat
 
 bool SystemManager::init()
 {
-    USER_LOG_INFO("[NODE][system_manager] init begin");
+    // USER_LOG_INFO("[NODE][system_manager] init begin");
 
     // 1. 启动 H30T 视频流；RTSP 服务器由外部服务负责运行
     if (!startH30tStream()) {
         USER_LOG_WARN("H30T stream startup failed; continuing in degraded mode");
         // 不返回 false，允许部分功能运行
     }
-    USER_LOG_INFO("[NODE][system_manager] H30T stream stage completed");
+    // USER_LOG_INFO("[NODE][system_manager] H30T stream stage completed");
 
     // 1. 创建 MQTT 桥接
     mqtt_ = std::unique_ptr<MqttBridge>(new MqttBridge(start_time_));
-    USER_LOG_INFO("[NODE][system_manager] MQTT bridge constructed");
+    // USER_LOG_INFO("[NODE][system_manager] MQTT bridge constructed");
     MqttConfig cfg;
 
     // 环境变量覆盖（省略，与你原来的相同）
@@ -86,14 +86,14 @@ bool SystemManager::init()
     if (drone) cfg.drone_id = drone;
 
     drone_id_ = cfg.drone_id;
-    USER_LOG_INFO("[NODE][system_manager] MQTT configuration loaded from defaults/environment");
+    // USER_LOG_INFO("[NODE][system_manager] MQTT configuration loaded from defaults/environment");
 
     if (!mqtt_->init(cfg))
     {
         USER_LOG_ERROR("[NODE][system_manager] MQTT init failed");
         return false;
     }
-    USER_LOG_INFO("[NODE][system_manager] MQTT initialized");
+    // USER_LOG_INFO("[NODE][system_manager] MQTT initialized");
 
     // 2. 添加 MQTT 日志转发
     g_sys_mgr_for_log = this;
@@ -116,10 +116,10 @@ bool SystemManager::init()
         USER_LOG_ERROR("[NODE][system_manager] MQTT dependencies startup failed");
         return false;
     }
-    USER_LOG_INFO("[NODE][system_manager] MQTT dependencies completed");
+    // USER_LOG_INFO("[NODE][system_manager] MQTT dependencies completed");
 
     running_ = true;
-    USER_LOG_INFO("[NODE][system_manager] init completed successfully");
+    // USER_LOG_INFO("[NODE][system_manager] init completed successfully");
     return true;
 }
 
@@ -128,8 +128,7 @@ bool SystemManager::init()
 // ============================================================================
 bool SystemManager::startH30tStream()
 {
-    USER_LOG_INFO("[NODE][system_manager] H30T stream start begin; external RTSP server is required");
-
+    // USER_LOG_INFO("[NODE][system_manager] H30T stream start begin; external RTSP server is required");
     // 1. 确定 H30T 挂载位置
     h30t_mount_ = 1;  // 默认挂载点 1
     const char *mount_env = std::getenv("H30T_MOUNT");
@@ -154,14 +153,14 @@ bool SystemManager::startH30tStream()
                 ack["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";
                 mqtt_->publish("drone/" + drone_id_ + "/psdk/command/ack", ack.dump());
             }));
-    USER_LOG_INFO("[NODE][system_manager] H30T stream controller constructed");
+    // USER_LOG_INFO("[NODE][system_manager] H30T stream controller constructed");
 
     if (!h30t_stream_->StartWorker()) {
         USER_LOG_ERROR("H30T worker thread start failed");
         h30t_stream_.reset();
         return false;
     }
-    USER_LOG_INFO("[NODE][system_manager] H30T worker started");
+    // USER_LOG_INFO("[NODE][system_manager] H30T worker started");
 
     if (!h30t_stream_->RequestStart(h30t_mount_)) {
         USER_LOG_ERROR("H30T dual stream start request failed on mount %d", h30t_mount_);
@@ -179,7 +178,7 @@ bool SystemManager::startH30tStream()
 // ============================================================================
 bool SystemManager::startMqttDependencies()
 {
-    USER_LOG_INFO("[NODE][system_manager] MQTT dependencies start begin");
+    // USER_LOG_INFO("[NODE][system_manager] MQTT dependencies start begin");
     // if (!mqtt_ || !mqtt_->is_connected()) {
     //     USER_LOG_ERROR("MQTT not available");
     //     return false;
@@ -189,20 +188,17 @@ bool SystemManager::startMqttDependencies()
 
     // 1. 创建遥测发布器（5Hz）
     telemetry_ = std::unique_ptr<TelemetryPublisher>(new TelemetryPublisher(*mqtt_));
-    USER_LOG_INFO("[NODE][system_manager] TelemetryPublisher constructed");
     telemetry_->start_5hz();
     USER_LOG_INFO("TelemetryPublisher started (5Hz)");
 
     // 2. 创建位置遥测发布器（50Hz）
     telemetry_pos_ = std::unique_ptr<TelemetryPosPublisher>(
         new TelemetryPosPublisher(*mqtt_));
-    USER_LOG_INFO("[NODE][system_manager] TelemetryPosPublisher constructed");
     telemetry_pos_->start();
     USER_LOG_INFO("TelemetryPosPublisher started (50Hz)");
 
     // 3. 创建命令执行器
     cmd_exec_ = std::unique_ptr<CommandExecutor>(new CommandExecutor(*mqtt_, cfg.drone_id));
-    USER_LOG_INFO("[NODE][system_manager] CommandExecutor constructed");
     cmd_exec_->SetTelemetryPublisher(telemetry_.get());
     cmd_exec_->SetH30tStreamController(h30t_stream_.get());
 
@@ -227,7 +223,6 @@ bool SystemManager::startMqttDependencies()
             cmd_exec_->HandleMqttCommand(topic, payload);
         }
     });
-    USER_LOG_INFO("[NODE][system_manager] MQTT command callback registered");
 
     std::string ctl_topic = "drone/" + cfg.drone_id + "/psdk/command/ctl";
     mqtt_->subscribe(ctl_topic, 1);
@@ -262,8 +257,6 @@ bool SystemManager::startMqttDependencies()
 // ============================================================================
 void SystemManager::stopH30tStream()
 {
-    USER_LOG_INFO("[NODE][system_manager] H30T stream stop begin");
-
     if (h30t_stream_) {
         h30t_stream_->Shutdown();
         h30t_stream_.reset();
@@ -277,8 +270,6 @@ void SystemManager::stopH30tStream()
 // ============================================================================
 void SystemManager::stopMqttDependencies()
 {
-    USER_LOG_INFO("[NODE][system_manager] MQTT dependencies stop begin");
-
     // 1. 先停止发布器（不再接收新数据）
     if (telemetry_pos_) {
         telemetry_pos_->stop();
@@ -319,13 +310,9 @@ void SystemManager::shutdown()
 {
     if (!running_.exchange(false))
         return;
-
-    USER_LOG_INFO("[NODE][system_manager] shutdown begin");
-
     // 按依赖顺序逆向停止
     stopMqttDependencies();
     stopH30tStream();
-
     g_sys_mgr_for_log = nullptr;
     USER_LOG_INFO("[NODE][system_manager] shutdown complete");
 }
