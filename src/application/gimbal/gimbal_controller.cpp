@@ -47,3 +47,25 @@ T_DjiReturnCode GimbalController::Rotate(E_DjiMountPosition mount,
     rotation.time = time;
     return DjiGimbalManager_Rotate(mount, rotation);
 }
+
+T_DjiReturnCode GimbalController::PointDownward(E_DjiMountPosition mount,
+                                                std::string &error) const
+{
+    if (!initialized_) {
+        error = "gimbal manager not initialized";
+        return DJI_ERROR_SYSTEM_MODULE_CODE_INVALID_PARAMETER;
+    }
+    return DjiGimbalManager_Reset(
+        mount, DJI_GIMBAL_RESET_MODE_PITCH_DOWNWARD_UPWARD);
+}
+
+T_DjiReturnCode GimbalController::Reset(E_DjiMountPosition mount,
+                                        E_DjiGimbalResetMode mode,
+                                        std::string &error) const
+{
+    if (!initialized_) {
+        error = "gimbal manager not initialized";
+        return DJI_ERROR_SYSTEM_MODULE_CODE_INVALID_PARAMETER;
+    }
+    return DjiGimbalManager_Reset(mount, mode);
+}

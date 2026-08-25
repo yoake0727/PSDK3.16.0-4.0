@@ -47,7 +47,9 @@ enum class FlightCommandType
     CONFIRM_LANDING,
     JOYSTICK_HOLD_START,
     JOYSTICK_HOLD_STOP,
-    GIMBAL_ROTATE
+    GIMBAL_ROTATE,
+    GIMBAL_POINT_DOWNWARD,
+    GIMBAL_RESET
 };
 
 // 命令结构体（与原版相同）
@@ -65,6 +67,7 @@ struct FlightCommand
     E_DjiGimbalRotationMode gimbal_mode = DJI_GIMBAL_ROTATION_MODE_RELATIVE_ANGLE;
     float gimbal_pitch = 0.0F, gimbal_roll = 0.0F, gimbal_yaw = 0.0F;
     double gimbal_time = 1.0;
+    E_DjiGimbalResetMode gimbal_reset_mode = DJI_GIMBAL_RESET_MODE_PITCH_AND_YAW;
 };
 
 class CommandExecutor

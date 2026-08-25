@@ -135,6 +135,37 @@ void CommandExecutor::HandleMqttCommand(const std::string &topic, const std::str
         return;
     }
     std::string cmd = j["cmd"].get<std::string>();
+    if (cmd == "gimbal_reset")
+    {
+        FlightCommand fc;
+        fc.type = FlightCommandType::GIMBAL_RESET;
+        const std::string mount = j.value("mount", "nose");
+        if (mount == "nose" || mount == "payload1") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO1;
+        else if (mount == "payload2") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO2;
+        else if (mount == "payload3") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO3;
+        else { publish_ack(cmd, "error", "mount must be nose, payload1, payload2, or payload3"); return; }
+        const std::string mode = j.value("mode", "pitch_yaw");
+        if (mode == "pitch_yaw") fc.gimbal_reset_mode = DJI_GIMBAL_RESET_MODE_PITCH_AND_YAW;
+        else if (mode == "yaw_only") fc.gimbal_reset_mode = DJI_GIMBAL_RESET_MODE_YAW_ONLY;
+        else if (mode == "pitch_only") fc.gimbal_reset_mode = DJI_GIMBAL_RESET_MODE_PITCH_ONLY;
+        else if (mode == "roll_only") fc.gimbal_reset_mode = DJI_GIMBAL_RESET_MODE_ROLL_ONLY;
+        else if (mode == "downward_upward") fc.gimbal_reset_mode = DJI_GIMBAL_RESET_MODE_PITCH_DOWNWARD_UPWARD;
+        else { publish_ack(cmd, "error", "invalid gimbal reset mode"); return; }
+        EnqueueFlightCommand(fc);
+        return;
+    }
+    if (cmd == "gimbal_downward")
+    {
+        FlightCommand fc;
+        fc.type = FlightCommandType::GIMBAL_POINT_DOWNWARD;
+        const std::string mount = j.value("mount", "nose");
+        if (mount == "nose" || mount == "payload1") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO1;
+        else if (mount == "payload2") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO2;
+        else if (mount == "payload3") fc.gimbal_mount = DJI_MOUNT_POSITION_PAYLOAD_PORT_NO3;
+        else { publish_ack(cmd, "error", "mount must be nose, payload1, payload2, or payload3"); return; }
+        EnqueueFlightCommand(fc);
+        return;
+    }
     if (cmd == "gimbal_rotate")
     {
         FlightCommand fc;
@@ -587,6 +618,46 @@ void CommandExecutor::FlightWorkerThread()
                 std::snprintf(message, sizeof(message), "sdk error 0x%08llX",
                               static_cast<unsigned long long>(rc));
                 publish_ack("gimbal_rotate", "error", message);
+            }
+            break;
+        }
+        case FlightCommandType::GIMBAL_POINT_DOWNWARD: {
+            std::string error;
+            if (!gimbal_controller_.IsInitialized() && !gimbal_controller_.Initialize()) {
+                publish_ack("gimbal_downward", "error", "gimbal manager init failed");
+                break;
+            }
+            const T_DjiReturnCode rc = gimbal_controller_.PointDownward(
+                cmd.gimbal_mount, error);
+            if (rc == DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS)
+                publish_ack("gimbal_downward", "ok", "downward reset submitted");
+            else if (!error.empty())
+                publish_ack("gimbal_downward", "error", error);
+            else {
+                char message[64];
+                std::snprintf(message, sizeof(message), "sdk error 0x%08llX",
+                              static_cast<unsigned long long>(rc));
+                publish_ack("gimbal_downward", "error", message);
+            }
+            break;
+        }
+        case FlightCommandType::GIMBAL_RESET: {
+            std::string error;
+            if (!gimbal_controller_.IsInitialized() && !gimbal_controller_.Initialize()) {
+                publish_ack("gimbal_reset", "error", "gimbal manager init failed");
+                break;
+            }
+            const T_DjiReturnCode rc = gimbal_controller_.Reset(
+                cmd.gimbal_mount, cmd.gimbal_reset_mode, error);
+            if (rc == DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS)
+                publish_ack("gimbal_reset", "ok", "reset submitted");
+            else if (!error.empty())
+                publish_ack("gimbal_reset", "error", error);
+            else {
+                char message[64];
+                std::snprintf(message, sizeof(message), "sdk error 0x%08llX",
+                              static_cast<unsigned long long>(rc));
+                publish_ack("gimbal_reset", "error", message);
             }
             break;
         }
