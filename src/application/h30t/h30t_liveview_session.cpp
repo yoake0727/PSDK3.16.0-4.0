@@ -16,22 +16,22 @@
 namespace {
 
 const E_DjiLiveViewCameraSource kImageSource = DJI_LIVEVIEW_CAMERA_SOURCE_DEFAULT;
+const std::chrono::seconds kIntraframeRequestPeriod(5);
 
 std::mutex g_dispatch_mutex;
 // 回调必须共享管线生命周期，Detach 后才允许销毁对象。
 std::shared_ptr<H30tRgbStreamPipeline> g_rgb_pipeline;
 E_DjiLiveViewCameraPosition g_camera_position = DJI_LIVEVIEW_CAMERA_POSITION_NO_1;
 
-void InfraredImageCallback(E_DjiLiveViewCameraPosition position,
-                           const uint8_t *data, uint32_t length,
-                           T_DjiLiveviewImageInfo image_info)
+void H264Callback(E_DjiLiveViewCameraPosition position,
+                  const uint8_t *data, uint32_t length)
 {
     try {
         std::shared_ptr<H30tRgbStreamPipeline> pipeline;
         { std::lock_guard<std::mutex> lock(g_dispatch_mutex);
-          if (position != g_camera_position || image_info.pixFmt != PIXFMT_RGB_PACKED) return;
+          if (position != g_camera_position) return;
           pipeline = g_rgb_pipeline; }
-        if (pipeline) pipeline->PushRgb(data, length, image_info.width, image_info.height);
+        if (pipeline) pipeline->PushH264(data, length);
     } catch (...) { USER_LOG_ERROR("Unhandled exception in H30T RGB callback."); }
 }
 
@@ -78,7 +78,8 @@ public:
              zoom_started(false), infrared_started(false),
              mount(DJI_MOUNT_POSITION_UNKNOWN),
              camera(DJI_LIVEVIEW_CAMERA_POSITION_NO_1),
-             active_source(DJI_CAMERA_MANAGER_SOURCE_DEFAULT_CAM) {}
+             active_source(DJI_CAMERA_MANAGER_SOURCE_DEFAULT_CAM),
+             next_intriframe_request(std::chrono::steady_clock::now()) {}
 
     bool camera_manager;
     bool liveview;
@@ -90,6 +91,7 @@ public:
     std::shared_ptr<H30tRgbStreamPipeline> infrared;
     H30tStreamPipelineConfig pipeline_config;
     E_DjiCameraManagerStreamSource active_source;
+    std::chrono::steady_clock::time_point next_intriframe_request;
 };
 
 H30tLiveviewSession::H30tLiveviewSession() : impl_(new Impl) {}
@@ -135,11 +137,12 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     }
     Attach(impl_->infrared, impl_->camera);
     impl_->attached = true;
-    code = DjiLiveview_StartImageStream(impl_->camera, kImageSource, PIXFMT_RGB_PACKED, InfraredImageCallback);
+    code = DjiLiveview_StartH264Stream(impl_->camera, kImageSource, H264Callback);
     if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         error = SdkError("H30T RGB image subscription failed", code); Stop(); return false;
     }
     impl_->infrared_started = true;
+    impl_->next_intriframe_request = std::chrono::steady_clock::now();
     USER_LOG_INFO("H30T switchable RGB RTSP target: %s",
                   h30t_config::RedactRtspUrl(config.rtsp_url).c_str());
     return true;
@@ -147,6 +150,16 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
 
 void H30tLiveviewSession::ServiceIntraframeRequests()
 {
+    if (!impl_->liveview || !impl_->infrared_started) return;
+    const auto now = std::chrono::steady_clock::now();
+    if (now < impl_->next_intriframe_request) return;
+    const T_DjiReturnCode code = DjiLiveview_RequestIntraframeFrameData(
+        impl_->camera, kImageSource);
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
+        USER_LOG_WARN("H30T request I frame failed: 0x%08llX",
+                      static_cast<unsigned long long>(code));
+    }
+    impl_->next_intriframe_request = now + kIntraframeRequestPeriod;
 }
 
 H30tStreamStatus H30tLiveviewSession::Status() const
@@ -169,6 +182,8 @@ bool H30tLiveviewSession::SwitchSource(H30tSource source)
             == DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS
             && static_cast<E_DjiCameraManagerStreamSource>(status.liveview_source_stream) == manager_source) {
             impl_->active_source = manager_source;
+            (void)DjiLiveview_RequestIntraframeFrameData(impl_->camera, kImageSource);
+            impl_->next_intriframe_request = std::chrono::steady_clock::now() + kIntraframeRequestPeriod;
             USER_LOG_INFO("H30T source switched without restarting RGB/RTSP pipeline: %d", static_cast<int>(manager_source));
             return true;
         }
@@ -181,7 +196,7 @@ void H30tLiveviewSession::Stop()
 {
     if (impl_->attached) { Detach(); impl_->attached = false; }
     if (impl_->infrared_started) {
-        DjiLiveview_StopImageStream(impl_->camera, kImageSource);
+        DjiLiveview_StopH264Stream(impl_->camera, kImageSource);
         impl_->infrared_started = false;
     }
     if (impl_->infrared) impl_->infrared->Stop();

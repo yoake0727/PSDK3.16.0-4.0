@@ -11,8 +11,7 @@ public:
     H30tRgbStreamPipeline();
     ~H30tRgbStreamPipeline();
     bool Start(const H30tStreamPipelineConfig &config);
-    void PushRgb(const std::uint8_t *data, std::size_t length,
-                 std::uint16_t width, std::uint16_t height);
+    void PushH264(const std::uint8_t *data, std::size_t length);
     H30tStreamStatus SnapshotStatus() const;
     void Stop();
 private:
