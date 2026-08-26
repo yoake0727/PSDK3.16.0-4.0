@@ -9,6 +9,7 @@
 
 #include <iomanip>
 #include <chrono>
+#include <atomic>
 #include <mutex>
 #include <sstream>
 #include <thread>
@@ -21,12 +22,20 @@ std::mutex g_dispatch_mutex;
 // 回调必须共享管线生命周期，Detach 后才允许销毁对象。
 std::shared_ptr<H30tRgbStreamPipeline> g_rgb_pipeline;
 E_DjiLiveViewCameraPosition g_camera_position = DJI_LIVEVIEW_CAMERA_POSITION_NO_1;
+std::atomic<bool> g_rgb_format_logged(false);
 
 void InfraredImageCallback(E_DjiLiveViewCameraPosition position,
                            const uint8_t *data, uint32_t length,
                            T_DjiLiveviewImageInfo image_info)
 {
     try {
+        if (!g_rgb_format_logged.exchange(true)) {
+            USER_LOG_INFO("H30T RGB image format: %ux%u, pixFmt=%d, frameId=%u",
+                          static_cast<unsigned int>(image_info.width),
+                          static_cast<unsigned int>(image_info.height),
+                          static_cast<int>(image_info.pixFmt),
+                          static_cast<unsigned int>(image_info.frameId));
+        }
         std::shared_ptr<H30tRgbStreamPipeline> pipeline;
         { std::lock_guard<std::mutex> lock(g_dispatch_mutex);
           if (position != g_camera_position || image_info.pixFmt != PIXFMT_RGB_PACKED) return;
@@ -128,13 +137,37 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     infrared_config.rtsp_transport = config.transport;
     infrared_config.max_queue_bytes = config.max_queue_bytes;
     impl_->pipeline_config = infrared_config;
-    impl_->active_source = DJI_CAMERA_MANAGER_SOURCE_DEFAULT_CAM;
+    const E_DjiCameraManagerStreamSource default_source = DJI_CAMERA_MANAGER_SOURCE_IR_CAM;
+    code = DjiCameraManager_SetStreamSource(impl_->mount, default_source);
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
+        error = SdkError("H30T infrared source selection failed", code);
+        Stop();
+        return false;
+    }
+    bool source_ready = false;
+    for (int i = 0; i < 10; ++i) {
+        T_DjiCameraCurrentCameraStatus status = {};
+        if (DjiCameraManager_GetCurrentCameraStatus(impl_->mount, &status)
+            == DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS
+            && static_cast<E_DjiCameraManagerStreamSource>(status.liveview_source_stream) == default_source) {
+            source_ready = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    if (!source_ready) {
+        error = "H30T infrared source selection timed out";
+        Stop();
+        return false;
+    }
+    impl_->active_source = default_source;
     impl_->infrared.reset(new H30tRgbStreamPipeline);
     if (!impl_->infrared->Start(infrared_config)) {
         error = "RGB RTSP pipeline initialization failed"; Stop(); return false;
     }
     Attach(impl_->infrared, impl_->camera);
     impl_->attached = true;
+    g_rgb_format_logged.store(false);
     code = DjiLiveview_StartImageStream(impl_->camera, kImageSource, PIXFMT_RGB_PACKED, InfraredImageCallback);
     if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         error = SdkError("H30T RGB image subscription failed", code); Stop(); return false;
