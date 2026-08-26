@@ -6,7 +6,7 @@ GimbalController::~GimbalController()
 {
     Deinitialize();
 }
-
+// 初始化云台管理器
 bool GimbalController::Initialize()
 {
     if (initialized_) return true;
@@ -14,14 +14,14 @@ bool GimbalController::Initialize()
     initialized_ = (rc == DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS);
     return initialized_;
 }
-
+// 反初始化云台管理器
 void GimbalController::Deinitialize()
 {
     if (!initialized_) return;
     (void)DjiGimbalManager_Deinit();
     initialized_ = false;
 }
-
+// 旋转云台到指定角度（相对/绝对）
 T_DjiReturnCode GimbalController::Rotate(E_DjiMountPosition mount,
                                          E_DjiGimbalRotationMode mode,
                                          float pitch, float roll, float yaw,
@@ -47,7 +47,7 @@ T_DjiReturnCode GimbalController::Rotate(E_DjiMountPosition mount,
     rotation.time = time;
     return DjiGimbalManager_Rotate(mount, rotation);
 }
-
+// 一键让云台指向正下方
 T_DjiReturnCode GimbalController::PointDownward(E_DjiMountPosition mount,
                                                 std::string &error) const
 {
@@ -58,7 +58,7 @@ T_DjiReturnCode GimbalController::PointDownward(E_DjiMountPosition mount,
     return DjiGimbalManager_Reset(
         mount, DJI_GIMBAL_RESET_MODE_PITCH_DOWNWARD_UPWARD);
 }
-
+// 复位云台（多种模式）
 T_DjiReturnCode GimbalController::Reset(E_DjiMountPosition mount,
                                         E_DjiGimbalResetMode mode,
                                         std::string &error) const
