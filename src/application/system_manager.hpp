@@ -13,6 +13,7 @@ class CommandExecutor;
 class FcSubscriptionManager;
 class LandingDetector;
 class H30tStreamController;
+class H30tYoloService;
 
 class SystemManager
 {
@@ -49,6 +50,8 @@ private:
      * @return true 成功，false 失败
      */
     bool startH30tStream();
+    bool startYolo();
+    void stopYolo();
 
     /**
      * @brief 启动 MQTT 依赖的服务（在 MQTT 连接成功后调用）
@@ -77,6 +80,7 @@ private:
 
     // === H30T 视频流控制 ===
     std::unique_ptr<H30tStreamController> h30t_stream_;
+    std::shared_ptr<H30tYoloService> yolo_;
     int h30t_mount_ = 1;  // 默认挂载点 1
 
     std::atomic<bool> running_{false};

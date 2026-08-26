@@ -3,7 +3,11 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
+
+typedef std::function<void(const uint8_t *, uint32_t, uint16_t, uint16_t)>
+    H30tRgbFrameCallback;
 
 enum class H30tControlState {
     kStopped,

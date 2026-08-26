@@ -14,6 +14,7 @@ public:
     ~H30tLiveviewSession();
 
     bool Start(int mount, const H30tRtspConfig &config, std::string &error);
+    void SetRgbFrameCallback(const H30tRgbFrameCallback &callback);
     void ServiceIntraframeRequests();
     H30tStreamStatus Status() const;
     void Stop();

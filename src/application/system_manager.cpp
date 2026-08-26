@@ -12,6 +12,7 @@
 #include "subscription/landing_detector.hpp"
 #include "h30t/h30t_stream_controller.hpp"
 #include "h30t/h30t_config.hpp"
+#include "yolo/h30t_yolo_service.hpp"
 #include "dji_logger.h"
 #include "dji_platform.h"
 #include "../common/osal/osal.h"
@@ -57,6 +58,10 @@ T_DjiReturnCode SystemManager::mqttLogCallback(const uint8_t *data, uint16_t dat
 
 bool SystemManager::init()
 {
+    running_ = true;
+    if (!startYolo()) {
+        USER_LOG_WARN("H30T YOLO startup failed; RTSP will continue without detection");
+    }
     // USER_LOG_INFO("[NODE][system_manager] init begin");
 
     // 1. 启动 H30T 视频流；RTSP 服务器由外部服务负责运行
@@ -153,6 +158,11 @@ bool SystemManager::startH30tStream()
                 ack["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";
                 mqtt_->publish("drone/" + drone_id_ + "/psdk/command/ack", ack.dump());
             }));
+    const std::shared_ptr<H30tYoloService> yolo = yolo_;
+    h30t_stream_->SetRgbFrameCallback(
+        [yolo](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height) {
+            if (yolo) yolo->SubmitRgbFrame(data, length, width, height);
+        });
     // USER_LOG_INFO("[NODE][system_manager] H30T stream controller constructed");
 
     if (!h30t_stream_->StartWorker()) {
@@ -171,6 +181,32 @@ bool SystemManager::startH30tStream()
 
     USER_LOG_INFO("[NODE][system_manager] H30T dual stream start requested on mount %d", h30t_mount_);
     return true;
+}
+
+bool SystemManager::startYolo()
+{
+    yolo_ = std::shared_ptr<H30tYoloService>(new H30tYoloService());
+    std::string error;
+    if (!yolo_->Start([this](const std::string &payload) {
+            if (mqtt_) {
+                mqtt_->publish("drone/" + drone_id_ + "/psdk/h30t/detections",
+                               payload, 1, false);
+            }
+        }, error)) {
+        USER_LOG_WARN("H30T YOLO disabled: %s", error.c_str());
+        yolo_.reset();
+        return false;
+    }
+    USER_LOG_INFO("H30T YOLO inference worker started");
+    return true;
+}
+
+void SystemManager::stopYolo()
+{
+    if (!yolo_) return;
+    yolo_->Stop();
+    yolo_.reset();
+    USER_LOG_INFO("H30T YOLO inference worker stopped");
 }
 
 // ============================================================================
@@ -311,8 +347,9 @@ void SystemManager::shutdown()
     if (!running_.exchange(false))
         return;
     // 按依赖顺序逆向停止
-    stopMqttDependencies();
     stopH30tStream();
+    stopYolo();
+    stopMqttDependencies();
     g_sys_mgr_for_log = nullptr;
     USER_LOG_INFO("[NODE][system_manager] shutdown complete");
 }
