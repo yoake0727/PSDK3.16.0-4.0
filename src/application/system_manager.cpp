@@ -214,12 +214,6 @@ void SystemManager::stopYolo()
 // ============================================================================
 bool SystemManager::startMqttDependencies()
 {
-    // USER_LOG_INFO("[NODE][system_manager] MQTT dependencies start begin");
-    // if (!mqtt_ || !mqtt_->is_connected()) {
-    //     USER_LOG_ERROR("MQTT not available");
-    //     return false;
-    // }
-
     const MqttConfig &cfg = mqtt_->cfg();
 
     // 1. 创建遥测发布器（5Hz）
