@@ -9,12 +9,14 @@
 using json = nlohmann::json;
 
 namespace {
+    // 读取环境变量，若不存在则返回默认值
 float EnvFloat(const char *name, float fallback)
 { const char *value = std::getenv(name); return value ? static_cast<float>(std::atof(value)) : fallback; }
+    // 读取环境变量，若不存在则返回默认值
 int EnvInt(const char *name, int fallback)
 { const char *value = std::getenv(name); return value ? std::atoi(value) : fallback; }
 }
-
+// // 构造函数：初始化运行状态和帧标志
 H30tYoloService::H30tYoloService() : running_(false), has_frame_(false) {}
 H30tYoloService::~H30tYoloService() { Stop(); }
 
@@ -23,8 +25,9 @@ YoloDetectorConfig H30tYoloService::LoadConfig()
     YoloDetectorConfig config;
     const char *model = std::getenv("H30T_YOLO_MODEL");
     const char *labels = std::getenv("H30T_YOLO_LABELS");
-    if (model) config.model_path = model;
-    if (labels) config.labels_path = labels;
+    if (model) config.model_path = model;   // 从环境变量读取模型路径
+    if (labels) config.labels_path = labels;// 从环境变量读取标签文件路径
+    // 从环境变量读取推理参数
     config.input_size = EnvInt("H30T_YOLO_INPUT_SIZE", config.input_size);
     config.confidence_threshold = EnvFloat("H30T_YOLO_CONFIDENCE", config.confidence_threshold);
     config.nms_threshold = EnvFloat("H30T_YOLO_NMS", config.nms_threshold);
@@ -37,10 +40,10 @@ bool H30tYoloService::Start(const YoloResultCallback &callback, std::string &err
     const YoloDetectorConfig config = LoadConfig();
     USER_LOG_INFO("H30T YOLO loading model: %s; labels: %s",
                   config.model_path.c_str(), config.labels_path.c_str());
-    if (!detector_.Load(config, error)) return false;
+    if (!detector_.Load(config, error)) return false; // 加载模型
     callback_ = callback;
     running_ = true;
-    worker_ = std::thread(&H30tYoloService::WorkerLoop, this);
+    worker_ = std::thread(&H30tYoloService::WorkerLoop, this); // 启动工作线程
     return true;
 }
 
@@ -60,18 +63,23 @@ void H30tYoloService::SubmitRgbFrame(const uint8_t *data, uint32_t length,
 void H30tYoloService::WorkerLoop()
 {
     while (true) {
-        cv::Mat frame;
+        cv::Mat frame; // 要处理的帧
         {
+            // 1. 等待新帧到来
             std::unique_lock<std::mutex> lock(mutex_);
             condition_.wait(lock, [this]() { return !running_ || has_frame_; });
+            // 2. 检查是否停止
             if (!running_) break;
             frame = pending_frame_;
             has_frame_ = false;
         }
         const std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+        // 3. 进行推理
         std::string error;
         const std::vector<YoloDetection> detections = detector_.Detect(frame, error);
+        // 4. 检查推理错误
         if (!error.empty()) { USER_LOG_WARN("H30T YOLO inference failed: %s", error.c_str()); continue; }
+        // 5. 构造JSON结果
         json payload;
         payload["timestampMs"] = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()).count();
@@ -81,6 +89,7 @@ void H30tYoloService::WorkerLoop()
         payload["inferenceMs"] = std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - begin).count();
         payload["detections"] = json::array();
+        // 6. 将检测结果添加到JSON中
         for (std::size_t i = 0; i < detections.size(); ++i) {
             const YoloDetection &item = detections[i];
             payload["detections"].push_back({
@@ -88,6 +97,7 @@ void H30tYoloService::WorkerLoop()
                 {"confidence", item.confidence}, {"x", item.box.x}, {"y", item.box.y},
                 {"width", item.box.width}, {"height", item.box.height}});
         }
+        // 7. 调用回调函数（MQTT发布）
         if (callback_) callback_(payload.dump());
     }
 }

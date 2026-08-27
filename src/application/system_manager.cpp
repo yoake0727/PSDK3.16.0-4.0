@@ -121,10 +121,7 @@ bool SystemManager::init()
         USER_LOG_ERROR("[NODE][system_manager] MQTT dependencies startup failed");
         return false;
     }
-    // USER_LOG_INFO("[NODE][system_manager] MQTT dependencies completed");
-
     running_ = true;
-    // USER_LOG_INFO("[NODE][system_manager] init completed successfully");
     return true;
 }
 
@@ -133,7 +130,6 @@ bool SystemManager::init()
 // ============================================================================
 bool SystemManager::startH30tStream()
 {
-    // USER_LOG_INFO("[NODE][system_manager] H30T stream start begin; external RTSP server is required");
     // 1. 确定 H30T 挂载位置
     h30t_mount_ = 1;  // 默认挂载点 1
     const char *mount_env = std::getenv("H30T_MOUNT");
@@ -158,19 +154,19 @@ bool SystemManager::startH30tStream()
                 ack["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";
                 mqtt_->publish("drone/" + drone_id_ + "/psdk/command/ack", ack.dump());
             }));
+    // 1. 获取 YOLO 服务的 shared_ptr（拷贝）
     const std::shared_ptr<H30tYoloService> yolo = yolo_;
+    // 2. 设置 RGB 帧回调
     h30t_stream_->SetRgbFrameCallback(
         [yolo](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height) {
             if (yolo) yolo->SubmitRgbFrame(data, length, width, height);
         });
-    // USER_LOG_INFO("[NODE][system_manager] H30T stream controller constructed");
 
     if (!h30t_stream_->StartWorker()) {
         USER_LOG_ERROR("H30T worker thread start failed");
         h30t_stream_.reset();
         return false;
     }
-    // USER_LOG_INFO("[NODE][system_manager] H30T worker started");
 
     if (!h30t_stream_->RequestStart(h30t_mount_)) {
         USER_LOG_ERROR("H30T dual stream start request failed on mount %d", h30t_mount_);
@@ -185,14 +181,18 @@ bool SystemManager::startH30tStream()
 
 bool SystemManager::startYolo()
 {
+    // 1. 创建 YOLO 服务实例（智能指针管理）
     yolo_ = std::shared_ptr<H30tYoloService>(new H30tYoloService());
     std::string error;
+    // 2. 启动 YOLO 服务，传入 Lambda 回调
     if (!yolo_->Start([this](const std::string &payload) {
+            // 3. YOLO 回调：将检测结果通过 MQTT 发布
             if (mqtt_) {
                 mqtt_->publish("drone/" + drone_id_ + "/psdk/h30t/detections",
                                payload, 1, false);
             }
         }, error)) {
+        // 4. 启动失败，输出错误信息
         USER_LOG_WARN("H30T YOLO disabled: %s", error.c_str());
         yolo_.reset();
         return false;
