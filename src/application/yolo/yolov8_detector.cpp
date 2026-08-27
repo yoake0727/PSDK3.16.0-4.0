@@ -192,14 +192,31 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
             }
             // 置信度过滤
             if (confidence < config_.confidence_threshold) continue;
-            // 计算边界框的左上角坐标和宽高
-            const float width = value(2) * scale_x;
-            const float height = value(3) * scale_y;
+            // TensorRT engine 可能输出 0~640 像素坐标，也可能输出 0~1 归一化坐标。
+            // 通过中心点和宽高的范围自动识别，统一映射到原始图像坐标。
+            const float raw_x = value(0);
+            const float raw_y = value(1);
+            const float raw_width = value(2);
+            const float raw_height = value(3);
+            const bool normalized = raw_x >= 0.0F && raw_x <= 1.5F &&
+                                   raw_y >= 0.0F && raw_y <= 1.5F &&
+                                   raw_width >= 0.0F && raw_width <= 1.5F &&
+                                   raw_height >= 0.0F && raw_height <= 1.5F;
+            const float coordinate_scale_x = normalized
+                ? static_cast<float>(image.cols) : scale_x;
+            const float coordinate_scale_y = normalized
+                ? static_cast<float>(image.rows) : scale_y;
+            const float center_x = raw_x * coordinate_scale_x;
+            const float center_y = raw_y * coordinate_scale_y;
+            const float width = raw_width * coordinate_scale_x;
+            const float height = raw_height * coordinate_scale_y;
             // 边界框中心点坐标
-            boxes.push_back(cv::Rect(static_cast<int>(value(0) * scale_x - width / 2),
-                                     static_cast<int>(value(1) * scale_y - height / 2),
-                                     static_cast<int>(width), static_cast<int>(height))
-                            & cv::Rect(0, 0, image.cols, image.rows));
+            cv::Rect box(static_cast<int>(center_x - width / 2.0F),
+                         static_cast<int>(center_y - height / 2.0F),
+                         static_cast<int>(width), static_cast<int>(height));
+            box &= cv::Rect(0, 0, image.cols, image.rows);
+            if (box.width <= 1 || box.height <= 1) continue;
+            boxes.push_back(box);
             scores.push_back(static_cast<float>(confidence)); // scores[0] = 第1个检测框的置信度
             class_ids.push_back(class_id);
         }
