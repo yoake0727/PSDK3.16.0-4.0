@@ -22,6 +22,7 @@ public:
     bool RequestStatus();
     bool RequestSource(H30tSource source);
     void SetRgbFrameCallback(const H30tRgbFrameCallback &callback);
+    void PushProcessedRgb(const uint8_t *data, uint32_t length, uint16_t width, uint16_t height);
     void Shutdown();
     H30tControlState State() const;
 

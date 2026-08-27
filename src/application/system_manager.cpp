@@ -191,6 +191,8 @@ bool SystemManager::startYolo()
                 mqtt_->publish("drone/" + drone_id_ + "/psdk/h30t/detections",
                                payload, 1, false);
             }
+        }, [this](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height) {
+            if (h30t_stream_) h30t_stream_->PushProcessedRgb(data, length, width, height);
         }, error)) {
         // 4. 启动失败，输出错误信息
         USER_LOG_WARN("H30T YOLO disabled: %s", error.c_str());

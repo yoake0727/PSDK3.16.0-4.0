@@ -15,6 +15,7 @@ public:
 
     bool Start(int mount, const H30tRtspConfig &config, std::string &error);
     void SetRgbFrameCallback(const H30tRgbFrameCallback &callback);
+    void PushProcessedRgb(const uint8_t *data, uint32_t length, uint16_t width, uint16_t height);
     void ServiceIntraframeRequests();
     H30tStreamStatus Status() const;
     void Stop();

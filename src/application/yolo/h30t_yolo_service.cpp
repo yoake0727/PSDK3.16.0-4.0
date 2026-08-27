@@ -2,9 +2,12 @@
 
 #include "3rdparty/json.hpp"
 #include "dji_logger.h"
+#include <opencv2/imgproc.hpp>
 
 #include <chrono>
 #include <cstdlib>
+#include <iomanip>
+#include <sstream>
 
 using json = nlohmann::json;
 
@@ -34,7 +37,9 @@ YoloDetectorConfig H30tYoloService::LoadConfig()
     return config;
 }
 
-bool H30tYoloService::Start(const YoloResultCallback &callback, std::string &error)
+bool H30tYoloService::Start(const YoloResultCallback &callback,
+                            const YoloAnnotatedFrameCallback &frame_callback,
+                            std::string &error)
 {
     Stop();
     const YoloDetectorConfig config = LoadConfig();
@@ -42,6 +47,7 @@ bool H30tYoloService::Start(const YoloResultCallback &callback, std::string &err
                   config.model_path.c_str(), config.labels_path.c_str());
     if (!detector_.Load(config, error)) return false; // 加载模型
     callback_ = callback;
+    frame_callback_ = frame_callback;
     running_ = true;
     worker_ = std::thread(&H30tYoloService::WorkerLoop, this); // 启动工作线程
     return true;
@@ -78,7 +84,13 @@ void H30tYoloService::WorkerLoop()
         std::string error;
         const std::vector<YoloDetection> detections = detector_.Detect(frame, error);
         // 4. 检查推理错误
-        if (!error.empty()) { USER_LOG_WARN("H30T YOLO inference failed: %s", error.c_str()); continue; }
+        if (!error.empty()) {
+            USER_LOG_WARN("H30T YOLO inference failed: %s", error.c_str());
+            if (frame_callback_) frame_callback_(frame.data,
+                static_cast<uint32_t>(frame.total() * frame.elemSize()),
+                static_cast<uint16_t>(frame.cols), static_cast<uint16_t>(frame.rows));
+            continue;
+        }
         // 5. 构造JSON结果
         json payload;
         payload["timestampMs"] = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -96,9 +108,24 @@ void H30tYoloService::WorkerLoop()
                 {"classId", item.class_id}, {"className", item.class_name},
                 {"confidence", item.confidence}, {"x", item.box.x}, {"y", item.box.y},
                 {"width", item.box.width}, {"height", item.box.height}});
+            cv::rectangle(frame, item.box, cv::Scalar(0, 255, 0), 2);
+            std::ostringstream label;
+            label << item.class_name << " " << std::fixed << std::setprecision(2) << item.confidence;
+            int baseline = 0;
+            const cv::Size text_size = cv::getTextSize(label.str(), cv::FONT_HERSHEY_SIMPLEX, 0.5, 1, &baseline);
+            const int text_x = std::max(0, item.box.x);
+            const int text_y = std::max(text_size.height + 2, item.box.y);
+            cv::rectangle(frame, cv::Rect(text_x, text_y - text_size.height - 2,
+                                          text_size.width + 4, text_size.height + 4),
+                          cv::Scalar(0, 255, 0), cv::FILLED);
+            cv::putText(frame, label.str(), cv::Point(text_x + 2, text_y),
+                        cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1);
         }
         // 7. 调用回调函数（MQTT发布）
         if (callback_) callback_(payload.dump());
+        if (frame_callback_) frame_callback_(frame.data,
+            static_cast<uint32_t>(frame.total() * frame.elemSize()),
+            static_cast<uint16_t>(frame.cols), static_cast<uint16_t>(frame.rows));
     }
 }
 
@@ -113,4 +140,5 @@ void H30tYoloService::Stop()
     condition_.notify_all();
     if (worker_.joinable()) worker_.join();
     callback_ = YoloResultCallback();
+    frame_callback_ = YoloAnnotatedFrameCallback();
 }

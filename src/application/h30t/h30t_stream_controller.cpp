@@ -67,6 +67,8 @@ public:
     H30tControlState State() const { return queue_.State(); }
     void SetRgbFrameCallback(const H30tRgbFrameCallback &callback)
     { session_.SetRgbFrameCallback(callback); }
+    void PushProcessedRgb(const uint8_t *data, uint32_t length, uint16_t width, uint16_t height)
+    { session_.PushProcessedRgb(data, length, width, height); }
 
 private:
     void Ack(const std::string &command, const std::string &status,
@@ -156,5 +158,8 @@ bool H30tStreamController::RequestStatus() { return impl_->RequestStatus(); }
 bool H30tStreamController::RequestSource(H30tSource source) { return impl_->RequestSource(source); }
 void H30tStreamController::SetRgbFrameCallback(const H30tRgbFrameCallback &callback)
 { impl_->SetRgbFrameCallback(callback); }
+void H30tStreamController::PushProcessedRgb(const uint8_t *data, uint32_t length,
+                                             uint16_t width, uint16_t height)
+{ impl_->PushProcessedRgb(data, length, width, height); }
 void H30tStreamController::Shutdown() { impl_->Shutdown(); }
 H30tControlState H30tStreamController::State() const { return impl_->State(); }

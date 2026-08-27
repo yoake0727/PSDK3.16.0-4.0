@@ -43,9 +43,10 @@ void InfraredImageCallback(E_DjiLiveViewCameraPosition position,
           if (position != g_camera_position || image_info.pixFmt != PIXFMT_RGB_PACKED) return;
           pipeline = g_rgb_pipeline;
           rgb_frame_callback = g_rgb_frame_callback; }
-        if (pipeline) pipeline->PushRgb(data, length, image_info.width, image_info.height);
         if (rgb_frame_callback) {
             rgb_frame_callback(data, length, image_info.width, image_info.height);
+        } else if (pipeline) {
+            pipeline->PushRgb(data, length, image_info.width, image_info.height);
         }
     } catch (...) { USER_LOG_ERROR("Unhandled exception in H30T RGB callback."); }
 }
@@ -114,6 +115,14 @@ H30tLiveviewSession::~H30tLiveviewSession() { Stop(); }
 void H30tLiveviewSession::SetRgbFrameCallback(const H30tRgbFrameCallback &callback)
 {
     impl_->rgb_frame_callback = callback;
+}
+
+void H30tLiveviewSession::PushProcessedRgb(const uint8_t *data, uint32_t length,
+                                           uint16_t width, uint16_t height)
+{
+    std::shared_ptr<H30tRgbStreamPipeline> pipeline;
+    { std::lock_guard<std::mutex> lock(g_dispatch_mutex); pipeline = g_rgb_pipeline; }
+    if (pipeline) pipeline->PushRgb(data, length, width, height);
 }
 
 bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,

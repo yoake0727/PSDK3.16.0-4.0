@@ -11,13 +11,16 @@
 #include <thread>
 
 typedef std::function<void(const std::string &)> YoloResultCallback;
+typedef std::function<void(const uint8_t *, uint32_t, uint16_t, uint16_t)> YoloAnnotatedFrameCallback;
 
 class H30tYoloService {
 public:
     H30tYoloService();
     ~H30tYoloService();
 
-    bool Start(const YoloResultCallback &callback, std::string &error);
+    bool Start(const YoloResultCallback &callback,
+               const YoloAnnotatedFrameCallback &frame_callback,
+               std::string &error);
     void SubmitRgbFrame(const uint8_t *data, uint32_t length,
                         uint16_t width, uint16_t height);
     void Stop();
@@ -28,6 +31,7 @@ private:
 
     Yolov8Detector detector_;
     YoloResultCallback callback_;
+    YoloAnnotatedFrameCallback frame_callback_;
     cv::Mat pending_frame_;
     std::mutex mutex_;
     std::condition_variable condition_;
