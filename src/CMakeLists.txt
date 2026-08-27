@@ -88,6 +88,14 @@ include_directories(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/include)
 
 # Try to see if user has OpenCV installed
 find_package(OpenCV REQUIRED COMPONENTS core imgproc dnn)
+find_path(TENSORRT_INCLUDE_DIR NvInfer.h
+        PATHS /usr/include/aarch64-linux-gnu REQUIRED)
+find_library(TENSORRT_LIBRARY nvinfer
+        PATHS /usr/lib/aarch64-linux-gnu REQUIRED)
+find_path(CUDA_INCLUDE_DIR cuda_runtime_api.h
+        PATHS /usr/local/cuda/include REQUIRED)
+find_library(CUDA_RUNTIME_LIBRARY cudart
+        PATHS /usr/local/cuda/lib64 REQUIRED)
 if (OpenCV_FOUND)
     message("\n${PROJECT_NAME}...")
     message(STATUS "Found OpenCV installed in the system, will use it to display image in AdvancedSensing APIs")
@@ -99,6 +107,9 @@ if (OpenCV_FOUND)
 else ()
     message(STATUS "Did not find OpenCV in the system, image data is inside RecvContainer as raw data")
 endif ()
+target_include_directories(${PROJECT_NAME} PRIVATE
+        ${TENSORRT_INCLUDE_DIR}
+        ${CUDA_INCLUDE_DIR})
 
 message(STATUS "Using static FFmpeg and Mosquitto from: ${STATIC_DEPS_ROOT}")
 target_include_directories(${PROJECT_NAME} PRIVATE "${STATIC_DEPS_INCLUDE_DIR}")
@@ -122,6 +133,8 @@ target_link_libraries(${PROJECT_NAME}
         "-Wl,--start-group"
         ${FFMPEG_STATIC_LIBRARIES}
         ${MOSQUITTO_STATIC_LIBRARY}
+        ${TENSORRT_LIBRARY}
+        ${CUDA_RUNTIME_LIBRARY}
         "-Wl,--end-group"
         pthread
         m
