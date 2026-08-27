@@ -1,4 +1,5 @@
 #include "yolov8_detector.hpp"
+#include "dji_logger.h" 
 
 #include <opencv2/imgproc.hpp>
 
@@ -7,6 +8,7 @@
 #include <sstream>
 #include <unistd.h>
 
+
 namespace {
 // 检查文件是否存在
 bool FileExists(const std::string &path)
@@ -14,10 +16,10 @@ bool FileExists(const std::string &path)
     std::ifstream file(path.c_str(), std::ios::binary);
     return file.good();
 }
-
+} // namespace
 YoloDetectorConfig::YoloDetectorConfig()
-    : model_path("src/application/yolo/runtime/yolov8n.onnx"),
-      labels_path("src/application/yolo/runtime/coco.names"),
+    : model_path("/home/dji/PSDK3.16.0-4.0-8.26-yolo/src/application/yolo/runtime/yolov8n.onnx"),
+      labels_path("/home/dji/PSDK3.16.0-4.0-8.26-yolo/src/application/yolo/runtime/coco.names"),
       input_size(640),
       confidence_threshold(0.25F),
       nms_threshold(0.45F)
@@ -26,27 +28,42 @@ YoloDetectorConfig::YoloDetectorConfig()
 bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
 {
     config_ = config;
-    std::ifstream labels(config.labels_path.c_str());
-    if (!labels) { error = "cannot open YOLO labels: " + config.labels_path; return false; }
-    labels_.clear();
+    // ===== 1. 验证标签文件 =====
+    USER_LOG_INFO("Checking labels file: %s", config.labels_path.c_str());
+    std::ifstream labels_file(config.labels_path.c_str());
+    if (!labels_file.good()) {
+        // 获取当前工作目录
+        char cwd[1024];
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            USER_LOG_ERROR("   Current working directory: %s", cwd);
+        }
+        error = "cannot open YOLO labels: " + config.labels_path;
+        USER_LOG_ERROR("%s", error.c_str());
+        return false;
+    }
+    USER_LOG_INFO("Labels file found");
+    // 读取标签文件
+    labels_.clear(); 
     std::string line;
-    while (std::getline(labels, line)) if (!line.empty()) labels_.push_back(line);
+    while (std::getline(labels_file, line)) if (!line.empty()) labels_.push_back(line);
+    USER_LOG_INFO("   Loaded %zu labels", labels_.size());
     // 3. 加载 ONNX 模型
     try {
         net_ = cv::dnn::readNetFromONNX(config.model_path);
         // DNN_BACKEND_OPENCV      # OpenCV 原生实现
         // DNN_BACKEND_INFERENCE_ENGINE  # Intel OpenVINO
         // DNN_BACKEND_CUDA        # NVIDIA CUDA
-        net_.setPreferableBackend(cv::dnn::DNN_BACKEND_OPENCV); 
-        // # 可选的推理目标
+        net_.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA); 
         // DNN_TARGET_CPU          # CPU
         // DNN_TARGET_OPENCL       # OpenCL
         // DNN_TARGET_CUDA         # CUDA
-        net_.setPreferableTarget(cv::dnn::DNN_TARGET_CPU);
+        net_.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
     } catch (const cv::Exception &e) {
-        error = std::string("cannot load YOLO model: ") + e.what(); return false;
+        error = std::string("cannot load YOLO model: ") + e.what(); 
+        USER_LOG_ERROR("%s", error.c_str());
+        return false;
     }
-    if (net_.empty()) { error = "YOLO model is empty"; return false; }
+    if (net_.empty()) { error = "YOLO model is empty"; USER_LOG_ERROR("%s", error.c_str()); return false; }
     return true;
 }
 
@@ -54,7 +71,7 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
 {
     std::vector<YoloDetection> result;
     // 1. 输入验证
-    if (image.empty() || net_.empty()) { error = "YOLO detector or input is empty"; return result; }
+    if (image.empty() || net_.empty()) { error = "YOLO detector or input is empty"; USER_LOG_ERROR("%s", error.c_str()); return result; }
     try {
         // 2. 图像预处理
         cv::Mat blob = cv::dnn::blobFromImage(image, 1.0 / 255.0,   // 归一化到 [0,1] 
@@ -63,7 +80,7 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
         net_.setInput(blob);
         std::vector<cv::Mat> outputs;
         net_.forward(outputs, net_.getUnconnectedOutLayersNames());
-        if (outputs.empty()) { error = "YOLO produced no output"; return result; }
+        if (outputs.empty()) { error = "YOLO produced no output"; USER_LOG_ERROR("%s", error.c_str()); return result; }
         // 4. 解析输出 → 
         // 4.1 输出格式处理
         cv::Mat output = outputs[0];
@@ -73,7 +90,7 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
         // 如果 rows < cols 且 rows <= 256，说明需要转置
         if (output.rows < output.cols && output.rows <= 256) cv::transpose(output, output);
         // 检查输出维度
-        if (output.cols < 5) { error = "unsupported YOLO output shape"; return result; }
+        if (output.cols < 5) { error = "unsupported YOLO output shape"; USER_LOG_ERROR("%s", error.c_str()); return result; }
         // 4.2 解析每个候选框
         const float scale_x = static_cast<float>(image.cols) / config_.input_size;
         const float scale_y = static_cast<float>(image.rows) / config_.input_size;
@@ -117,6 +134,6 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
             detection.box = boxes[index];
             result.push_back(detection);
         }
-    } catch (const cv::Exception &e) { error = e.what(); }
+    } catch (const cv::Exception &e) { error = e.what(); USER_LOG_ERROR("%s", error.c_str()); }
     return result;
 }
