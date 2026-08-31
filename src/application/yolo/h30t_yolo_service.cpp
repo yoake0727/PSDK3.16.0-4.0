@@ -52,7 +52,7 @@ bool H30tYoloService::Start(const YoloResultCallback &callback,
     worker_ = std::thread(&H30tYoloService::WorkerLoop, this); // 启动工作线程
     return true;
 }
-
+// 接收 RGB 图像数据，将其存储到共享缓冲区中，并通知处理线程进行推理
 void H30tYoloService::SubmitRgbFrame(const uint8_t *data, uint32_t length,
                                      uint16_t width, uint16_t height)
 {
