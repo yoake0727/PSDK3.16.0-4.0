@@ -20,7 +20,7 @@ public:
 };
 
 TrtLogger g_trt_logger;
-
+// 计算 TensorRT 张量的总元素数
 std::size_t ElementCount(const nvinfer1::Dims &dims)
 {
     std::size_t count = 1;
@@ -61,11 +61,11 @@ void Yolov8Detector::Reset()
     input_binding_ = -1; output_binding_ = -1;
 }
 YoloDetectorConfig::YoloDetectorConfig()
-    : model_path("/home/dji/PSDK3.16.0-4.2-8.28-yolo/src/application/yolo/runtime/yolov8n.engine"),
-      labels_path("/home/dji/PSDK3.16.0-4.2-8.28-yolo/src/application/yolo/runtime/coco.names"),
+    : model_path("/home/dji/PSDK3.16.0-4.2-8.28-yolo/src/application/yolo/runtime/best.engine"),
+      labels_path("/home/dji/PSDK3.16.0-4.2-8.28-yolo/src/application/yolo/runtime/best.names"),
       input_size(640),
-      confidence_threshold(0.25F),
-      nms_threshold(0.45F)
+      confidence_threshold(0.1F),
+      nms_threshold(0.5F)
 {
 }
 bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
