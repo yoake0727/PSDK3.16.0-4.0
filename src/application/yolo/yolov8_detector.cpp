@@ -3,8 +3,10 @@
 
 #include <opencv2/imgproc.hpp>
 #include <opencv2/dnn/dnn.hpp>
+#include <cuda_fp16.h>
 
 #include <algorithm>
+#include <cstring>
 #include <fstream>
 #include <sstream>
 #include <unistd.h>
@@ -31,6 +33,30 @@ std::size_t ElementCount(const nvinfer1::Dims &dims)
     return count;
 }
 
+std::size_t DataTypeSize(nvinfer1::DataType type)
+{
+    switch (type) {
+        case nvinfer1::DataType::kFLOAT: return sizeof(float);
+        case nvinfer1::DataType::kHALF: return sizeof(unsigned short);
+        default: return 0;
+    }
+}
+
+unsigned short FloatToHalfBits(float value)
+{
+    const __half half_value = __float2half(value);
+    unsigned short bits = 0;
+    std::memcpy(&bits, &half_value, sizeof(bits));
+    return bits;
+}
+
+float HalfBitsToFloat(unsigned short bits)
+{
+    __half half_value;
+    std::memcpy(&half_value, &bits, sizeof(bits));
+    return __half2float(half_value);
+}
+
 // 检查文件是否存在
 bool FileExists(const std::string &path)
 {
@@ -52,6 +78,8 @@ void Yolov8Detector::Reset()
         if (device_bindings_[i]) cudaFree(device_bindings_[i]);
     }
     device_bindings_.clear();
+    input_buffer_.clear(); output_buffer_.clear();
+    input_half_buffer_.clear(); output_half_buffer_.clear();
     if (stream_) cudaStreamDestroy(stream_);
     stream_ = NULL;
     if (context_) context_->destroy();
@@ -64,7 +92,7 @@ YoloDetectorConfig::YoloDetectorConfig()
     : model_path("/home/dji/PSDK3.16.0-4.2-8.28-yolo/src/application/yolo/runtime/best.engine"),
       labels_path("/home/dji/PSDK3.16.0-4.2-8.28-yolo/src/application/yolo/runtime/best.names"),
       input_size(640),
-      confidence_threshold(0.1F),
+      confidence_threshold(0.3F),
       nms_threshold(0.5F)
 {
 }
@@ -114,6 +142,11 @@ bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
     if (input_binding_ < 0 || output_binding_ < 0 || engine_->getNbBindings() != 2) {
         error = "TensorRT engine must have exactly one input and one output"; Reset(); return false;
     }
+    input_type_ = engine_->getBindingDataType(input_binding_);
+    output_type_ = engine_->getBindingDataType(output_binding_);
+    if (DataTypeSize(input_type_) == 0 || DataTypeSize(output_type_) == 0) {
+        error = "TensorRT engine input/output must be FP32 or FP16"; Reset(); return false;
+    }
     nvinfer1::Dims input_dims = engine_->getBindingDimensions(input_binding_);
     if (input_dims.nbDims == 4 && input_dims.d[0] < 0) input_dims.d[0] = 1;
     if (input_dims.nbDims == 4 && input_dims.d[2] < 0) input_dims.d[2] = config.input_size;
@@ -134,9 +167,11 @@ bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
     output_candidates_ = previous <= 256 ? last : previous;
     input_buffer_.resize(input_count);
     output_buffer_.resize(output_count);
+    if (input_type_ == nvinfer1::DataType::kHALF) input_half_buffer_.resize(input_count);
+    if (output_type_ == nvinfer1::DataType::kHALF) output_half_buffer_.resize(output_count);
     if (cudaStreamCreate(&stream_) != cudaSuccess ||
-        cudaMalloc(&device_bindings_[input_binding_], input_count * sizeof(float)) != cudaSuccess ||
-        cudaMalloc(&device_bindings_[output_binding_], output_count * sizeof(float)) != cudaSuccess) {
+        cudaMalloc(&device_bindings_[input_binding_], input_count * DataTypeSize(input_type_)) != cudaSuccess ||
+        cudaMalloc(&device_bindings_[output_binding_], output_count * DataTypeSize(output_type_)) != cudaSuccess) {
         error = "TensorRT CUDA buffer allocation failed"; Reset(); return false;
     }
     USER_LOG_INFO("TensorRT engine loaded: input=%zu, output=%dx%d",
@@ -150,25 +185,34 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
     // 1. 输入验证
     if (image.empty() || !context_) { error = "YOLO detector or input is empty"; USER_LOG_ERROR("%s", error.c_str()); return result; }
     try {
-        cv::Mat resized;
+        cv::Mat resized, blob;
         cv::resize(image, resized, cv::Size(config_.input_size, config_.input_size));
-        const int plane = config_.input_size * config_.input_size;
-        for (int y = 0; y < config_.input_size; ++y) {
-            const cv::Vec3b *row = resized.ptr<cv::Vec3b>(y);
-            for (int x = 0; x < config_.input_size; ++x) {
-                const int offset = y * config_.input_size + x;
-                input_buffer_[offset] = row[x][0] / 255.0F;
-                input_buffer_[plane + offset] = row[x][1] / 255.0F;
-                input_buffer_[2 * plane + offset] = row[x][2] / 255.0F;
+        cv::dnn::blobFromImage(resized, blob, 1.0 / 255.0,
+                               cv::Size(config_.input_size, config_.input_size),
+                               cv::Scalar(0, 0, 0), true, false, CV_32F);
+        input_buffer_.assign(blob.ptr<float>(), blob.ptr<float>() + blob.total());
+        const void *host_input = input_buffer_.data();
+        if (input_type_ == nvinfer1::DataType::kHALF) {
+            for (std::size_t i = 0; i < input_buffer_.size(); ++i) {
+                input_half_buffer_[i] = FloatToHalfBits(input_buffer_[i]);
             }
+            host_input = input_half_buffer_.data();
         }
-        if (cudaMemcpyAsync(device_bindings_[input_binding_], input_buffer_.data(),
-                            input_buffer_.size() * sizeof(float), cudaMemcpyHostToDevice, stream_) != cudaSuccess ||
+        void *host_output = output_type_ == nvinfer1::DataType::kHALF
+            ? static_cast<void *>(output_half_buffer_.data())
+            : static_cast<void *>(output_buffer_.data());
+        if (cudaMemcpyAsync(device_bindings_[input_binding_], host_input,
+                            input_buffer_.size() * DataTypeSize(input_type_), cudaMemcpyHostToDevice, stream_) != cudaSuccess ||
             !context_->enqueueV2(device_bindings_.data(), stream_, NULL) ||
-            cudaMemcpyAsync(output_buffer_.data(), device_bindings_[output_binding_],
-                            output_buffer_.size() * sizeof(float), cudaMemcpyDeviceToHost, stream_) != cudaSuccess ||
+            cudaMemcpyAsync(host_output, device_bindings_[output_binding_],
+                            output_buffer_.size() * DataTypeSize(output_type_), cudaMemcpyDeviceToHost, stream_) != cudaSuccess ||
             cudaStreamSynchronize(stream_) != cudaSuccess) {
             error = "TensorRT inference failed"; return result;
+        }
+        if (output_type_ == nvinfer1::DataType::kHALF) {
+            for (std::size_t i = 0; i < output_buffer_.size(); ++i) {
+                output_buffer_[i] = HalfBitsToFloat(output_half_buffer_[i]);
+            }
         }
         // 4.2 解析每个候选框
         const float scale_x = static_cast<float>(image.cols) / config_.input_size;
@@ -192,24 +236,14 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
             }
             // 置信度过滤
             if (confidence < config_.confidence_threshold) continue;
-            // TensorRT engine 可能输出 0~640 像素坐标，也可能输出 0~1 归一化坐标。
-            // 通过中心点和宽高的范围自动识别，统一映射到原始图像坐标。
             const float raw_x = value(0);
             const float raw_y = value(1);
             const float raw_width = value(2);
             const float raw_height = value(3);
-            const bool normalized = raw_x >= 0.0F && raw_x <= 1.5F &&
-                                   raw_y >= 0.0F && raw_y <= 1.5F &&
-                                   raw_width >= 0.0F && raw_width <= 1.5F &&
-                                   raw_height >= 0.0F && raw_height <= 1.5F;
-            const float coordinate_scale_x = normalized
-                ? static_cast<float>(image.cols) : scale_x;
-            const float coordinate_scale_y = normalized
-                ? static_cast<float>(image.rows) : scale_y;
-            const float center_x = raw_x * coordinate_scale_x;
-            const float center_y = raw_y * coordinate_scale_y;
-            const float width = raw_width * coordinate_scale_x;
-            const float height = raw_height * coordinate_scale_y;
+            const float center_x = raw_x * scale_x;
+            const float center_y = raw_y * scale_y;
+            const float width = raw_width * scale_x;
+            const float height = raw_height * scale_y;
             // 边界框中心点坐标
             cv::Rect box(static_cast<int>(center_x - width / 2.0F),
                          static_cast<int>(center_y - height / 2.0F),

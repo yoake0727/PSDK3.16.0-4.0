@@ -42,9 +42,13 @@ private:
     cudaStream_t stream_;
     int input_binding_;
     int output_binding_;
+    nvinfer1::DataType input_type_;
+    nvinfer1::DataType output_type_;
     std::vector<void *> device_bindings_;
     std::vector<float> input_buffer_;
     std::vector<float> output_buffer_;
+    std::vector<unsigned short> input_half_buffer_;
+    std::vector<unsigned short> output_half_buffer_;
     int output_channels_;
     int output_candidates_;
     std::vector<std::string> labels_;
