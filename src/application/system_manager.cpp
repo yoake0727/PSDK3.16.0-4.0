@@ -64,11 +64,6 @@ bool SystemManager::init()
     }
 
     // 1. 启动 H30T 视频流；RTSP 服务器由外部服务负责运行
-    if (!startH30tStream()) {
-        USER_LOG_WARN("H30T stream startup failed; continuing in degraded mode");
-        // 不返回 false，允许部分功能运行
-    }
-
     // 1. 创建 MQTT 桥接
     mqtt_ = std::unique_ptr<MqttBridge>(new MqttBridge(start_time_));
     MqttConfig cfg;
@@ -116,6 +111,10 @@ bool SystemManager::init()
         USER_LOG_ERROR("[NODE][system_manager] MQTT dependencies startup failed");
         return false;
     }
+    if (!startH30tStream()) {
+        USER_LOG_WARN("H30T stream startup failed; continuing in degraded mode");
+    }
+    if (cmd_exec_) cmd_exec_->SetH30tStreamController(h30t_stream_.get());
     running_ = true;
     return true;
 }
@@ -227,8 +226,6 @@ bool SystemManager::startMqttDependencies()
     // 3. 创建命令执行器
     cmd_exec_ = std::unique_ptr<CommandExecutor>(new CommandExecutor(*mqtt_, cfg.drone_id));
     cmd_exec_->SetTelemetryPublisher(telemetry_.get());
-    cmd_exec_->SetH30tStreamController(h30t_stream_.get());
-
     if (!cmd_exec_->EnsureFlightControllerInited()) {
         USER_LOG_WARN("Flight controller initialization failed; local RTSP remains available");
     }

@@ -1,4 +1,4 @@
-#include "h30t_liveview_session.hpp"
+﻿#include "h30t_liveview_session.hpp"
 
 #include "h30t_config.hpp"
 #include "h30t_rgb_stream_pipeline.hpp"
@@ -123,7 +123,6 @@ void H30tLiveviewSession::PushProcessedRgb(const uint8_t *data, uint32_t length,
     std::shared_ptr<H30tRgbStreamPipeline> pipeline;
     { std::lock_guard<std::mutex> lock(g_dispatch_mutex); pipeline = g_rgb_pipeline; }
     if (pipeline) {
-        static std::uint32_t processed_log_counter = 0;
         pipeline->PushRgb(data, length, width, height);
     } else {
         USER_LOG_WARN("H30T processed RGB frame dropped: pipeline unavailable");
@@ -134,28 +133,18 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
                                 std::string &error)
 {
     Stop();
-    if (!ConvertMount(mount, impl_->mount, impl_->camera)) {
-        error = "invalid mount position"; return false;
-    }
+    if (!ConvertMount(mount, impl_->mount, impl_->camera)) { error = "invalid mount position"; return false; }
     T_DjiReturnCode code = DjiCameraManager_Init();
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
-        error = SdkError("camera manager initialization failed", code); return false;
-    }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { error = SdkError("camera manager initialization failed", code); return false; }
     impl_->camera_manager = true;
     bool connected = false;
     code = DjiCameraManager_GetCameraConnectStatus(impl_->mount, &connected);
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || !connected) {
-        error = SdkError("H30T is not connected", code); Stop(); return false;
-    }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || !connected) { error = SdkError("H30T is not connected", code); Stop(); return false; }
     E_DjiCameraType type = DJI_CAMERA_TYPE_UNKNOWN;
     code = DjiCameraManager_GetCameraType(impl_->mount, &type);
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || type != DJI_CAMERA_TYPE_H30T) {
-        error = SdkError("camera at requested mount is not H30T", code); Stop(); return false;
-    }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || type != DJI_CAMERA_TYPE_H30T) { error = SdkError("camera at requested mount is not H30T", code); Stop(); return false; }
     code = DjiLiveview_Init();
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
-        error = SdkError("liveview initialization failed", code); Stop(); return false;
-    }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { error = SdkError("liveview initialization failed", code); Stop(); return false; }
     impl_->liveview = true;
 
     H30tStreamPipelineConfig infrared_config;
@@ -257,3 +246,5 @@ void H30tLiveviewSession::Stop()
     if (impl_->liveview) { DjiLiveview_Deinit(); impl_->liveview = false; }
     if (impl_->camera_manager) { DjiCameraManager_DeInit(); impl_->camera_manager = false; }
 }
+
+
