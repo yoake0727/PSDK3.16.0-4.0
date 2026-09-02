@@ -46,7 +46,6 @@ void TelemetryPosPublisher::start()
         sync_thread_ = std::thread(&TelemetryPosPublisher::syncLoop, this);
     }
 
-    USER_LOG_INFO("TelemetryPosPublisher started (50Hz + NTP sync)");
 }
 
 void TelemetryPosPublisher::stop()

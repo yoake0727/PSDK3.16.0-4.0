@@ -121,8 +121,6 @@ void H30tYoloService::WorkerLoop()
             cv::putText(frame, label.str(), cv::Point(text_x + 2, text_y),
                         cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1);
         }
-        static std::uint32_t annotated_log_counter = 0;
-
         // 7. 调用回调函数（MQTT发布）
         if (callback_) callback_(payload.dump());
         if (frame_callback_) frame_callback_(frame.data,

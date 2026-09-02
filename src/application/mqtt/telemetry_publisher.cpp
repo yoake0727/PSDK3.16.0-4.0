@@ -33,7 +33,6 @@ void TelemetryPublisher::start_5hz()
     if (running_.exchange(true))
         return;
     publish_thread_ = std::thread(&TelemetryPublisher::runLoop, this);
-    USER_LOG_INFO("TelemetryPublisher started (5Hz)");
 }
 
 void TelemetryPublisher::stop()

@@ -103,7 +103,6 @@ bool SystemManager::init()
     }
     else
     {
-        USER_LOG_INFO("[NODE][system_manager] MQTT logger attached");
     }
 
     // 4. 启动 MQTT 依赖服务（遥测、FC 订阅等）
@@ -215,13 +214,11 @@ bool SystemManager::startMqttDependencies()
     // 1. 创建遥测发布器（5Hz）
     telemetry_ = std::unique_ptr<TelemetryPublisher>(new TelemetryPublisher(*mqtt_));
     telemetry_->start_5hz();
-    USER_LOG_INFO("TelemetryPublisher started (5Hz)");
 
     // 2. 创建位置遥测发布器（50Hz）
     telemetry_pos_ = std::unique_ptr<TelemetryPosPublisher>(
         new TelemetryPosPublisher(*mqtt_));
     telemetry_pos_->start();
-    USER_LOG_INFO("TelemetryPosPublisher started (50Hz)");
 
     // 3. 创建命令执行器
     cmd_exec_ = std::unique_ptr<CommandExecutor>(new CommandExecutor(*mqtt_, cfg.drone_id));
@@ -254,13 +251,11 @@ bool SystemManager::startMqttDependencies()
 
     // 5. 创建 FC 订阅管理器
     fc_mgr_ = std::unique_ptr<FcSubscriptionManager>(new FcSubscriptionManager());
-    USER_LOG_INFO("[NODE][system_manager] FC subscription manager constructed");
 
     // 6. 创建降落检测器
     landing_detector_ = std::unique_ptr<LandingDetector>(new LandingDetector(
         *mqtt_, cfg.drone_id,
         [this]() { return cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : ""; }));
-    USER_LOG_INFO("[NODE][system_manager] landing detector constructed");
 
     fc_mgr_->addObserver(telemetry_.get());
     fc_mgr_->addObserver(telemetry_pos_.get());
@@ -271,7 +266,7 @@ bool SystemManager::startMqttDependencies()
         USER_LOG_ERROR("FcSubscriptionManager start failed");
         return false;
     }
-    USER_LOG_INFO("FC subscription manager started");
+    USER_LOG_INFO("[NODE][system_manager] MQTT/telemetry/FC services started");
 
     return true;
 }
