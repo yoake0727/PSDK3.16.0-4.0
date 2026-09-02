@@ -62,18 +62,15 @@ bool SystemManager::init()
     if (!startYolo()) {
         USER_LOG_WARN("H30T YOLO startup failed; RTSP will continue without detection");
     }
-    // USER_LOG_INFO("[NODE][system_manager] init begin");
 
     // 1. 启动 H30T 视频流；RTSP 服务器由外部服务负责运行
     if (!startH30tStream()) {
         USER_LOG_WARN("H30T stream startup failed; continuing in degraded mode");
         // 不返回 false，允许部分功能运行
     }
-    // USER_LOG_INFO("[NODE][system_manager] H30T stream stage completed");
 
     // 1. 创建 MQTT 桥接
     mqtt_ = std::unique_ptr<MqttBridge>(new MqttBridge(start_time_));
-    // USER_LOG_INFO("[NODE][system_manager] MQTT bridge constructed");
     MqttConfig cfg;
 
     // 环境变量覆盖（省略，与你原来的相同）
@@ -91,14 +88,12 @@ bool SystemManager::init()
     if (drone) cfg.drone_id = drone;
 
     drone_id_ = cfg.drone_id;
-    // USER_LOG_INFO("[NODE][system_manager] MQTT configuration loaded from defaults/environment");
 
     if (!mqtt_->init(cfg))
     {
         USER_LOG_ERROR("[NODE][system_manager] MQTT init failed");
         return false;
     }
-    // USER_LOG_INFO("[NODE][system_manager] MQTT initialized");
 
     // 2. 添加 MQTT 日志转发
     g_sys_mgr_for_log = this;

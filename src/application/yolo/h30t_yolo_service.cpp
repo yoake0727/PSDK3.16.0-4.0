@@ -122,11 +122,7 @@ void H30tYoloService::WorkerLoop()
                         cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 0, 0), 1);
         }
         static std::uint32_t annotated_log_counter = 0;
-        if ((annotated_log_counter++ % 30U) == 0U) {
-            USER_LOG_INFO("H30T YOLO annotated frame ready: %ux%u, detections=%u",
-                          static_cast<unsigned int>(frame.cols), static_cast<unsigned int>(frame.rows),
-                          static_cast<unsigned int>(detections.size()));
-        }
+
         // 7. 调用回调函数（MQTT发布）
         if (callback_) callback_(payload.dump());
         if (frame_callback_) frame_callback_(frame.data,

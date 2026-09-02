@@ -124,11 +124,6 @@ void H30tLiveviewSession::PushProcessedRgb(const uint8_t *data, uint32_t length,
     { std::lock_guard<std::mutex> lock(g_dispatch_mutex); pipeline = g_rgb_pipeline; }
     if (pipeline) {
         static std::uint32_t processed_log_counter = 0;
-        if ((processed_log_counter++ % 30U) == 0U) {
-            USER_LOG_INFO("H30T processed RGB frame queued for encoder: %ux%u, bytes=%u",
-                          static_cast<unsigned int>(width), static_cast<unsigned int>(height),
-                          static_cast<unsigned int>(length));
-        }
         pipeline->PushRgb(data, length, width, height);
     } else {
         USER_LOG_WARN("H30T processed RGB frame dropped: pipeline unavailable");

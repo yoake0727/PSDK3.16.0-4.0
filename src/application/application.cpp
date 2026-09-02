@@ -425,13 +425,6 @@ T_DjiReturnCode Application::DjiUser_LocalWriteFsInit(const char *path)
     return djiReturnCode;
 }
 
-// static void DjiUser_NormalExitHandler(int signalNum)
-// {
-//     USER_UTIL_UNUSED(signalNum);
-//     USER_LOG_INFO("TUICHU");
-//     exit(0);
-// }
-
 static void DjiUser_NormalExitHandler(int signalNum) {
     USER_UTIL_UNUSED(signalNum);
     USER_LOG_INFO("[NODE][application] Received signal, shutting down");

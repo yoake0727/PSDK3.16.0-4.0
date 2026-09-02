@@ -33,10 +33,8 @@ int main(int argc, char **argv)
 
     // 2. 创建并初始化自定义系统管理器（MQTT，遥测，命令处理，FC 订阅，降落检测等）
     SystemManager sys_mgr;
-    // g_system_manager = &sys_mgr;
 
     SetSystemManagerForExit(&sys_mgr);
-    // USER_LOG_INFO("[NODE][main] SystemManager registered for exit handling");
 
     if (!sys_mgr.init())
     {

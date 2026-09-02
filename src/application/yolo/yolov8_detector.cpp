@@ -101,7 +101,6 @@ bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
     Reset();
     config_ = config;
     // ===== 1. 验证标签文件 =====
-    USER_LOG_INFO("Checking labels file: %s", config.labels_path.c_str());
     std::ifstream labels_file(config.labels_path.c_str());
     if (!labels_file.good()) {
         // 获取当前工作目录
@@ -113,12 +112,10 @@ bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
         USER_LOG_ERROR("%s", error.c_str());
         return false;
     }
-    USER_LOG_INFO("Labels file found");
     // 读取标签文件
     labels_.clear(); 
     std::string line;
     while (std::getline(labels_file, line)) if (!line.empty()) labels_.push_back(line);
-    USER_LOG_INFO("   Loaded %zu labels", labels_.size());
     std::ifstream engine_file(config.model_path.c_str(), std::ios::binary | std::ios::ate);
     if (!engine_file) { error = "cannot open TensorRT engine: " + config.model_path; return false; }
     const std::streamsize engine_size = engine_file.tellg();
