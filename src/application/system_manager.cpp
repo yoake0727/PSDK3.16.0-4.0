@@ -131,7 +131,7 @@ bool SystemManager::init()
 bool SystemManager::startH30tStream()
 {
     // 1. 确定 H30T 挂载位置
-    h30t_mount_ = 2;  // 默认挂载点 2
+    h30t_mount_ = 3;  // 默认挂载点 3
     const char *mount_env = std::getenv("H30T_MOUNT");
     if (mount_env) {
         int mount = std::atoi(mount_env);
