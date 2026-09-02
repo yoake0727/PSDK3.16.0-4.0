@@ -45,7 +45,7 @@
     "ver_max": "99.99.99.99",
     "bin": "../../build/bin/psdk_payload_app",
     "userconfig": [
-        "../application/yolo/runtime/yolov8n.engine",
-        "../application/yolo/runtime/coco.names"
+        "../application/yolo/runtime/best.engine",
+        "../application/yolo/runtime/best.names"
     ]
 }

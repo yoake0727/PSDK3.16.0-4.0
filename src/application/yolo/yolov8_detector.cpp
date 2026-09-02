@@ -89,8 +89,8 @@ void Yolov8Detector::Reset()
     input_binding_ = -1; output_binding_ = -1;
 }
 YoloDetectorConfig::YoloDetectorConfig()
-    : model_path("/home/dji/PSDK3.16.0-4.2-8.28-yolo/src/application/yolo/runtime/best.engine"),
-      labels_path("/home/dji/PSDK3.16.0-4.2-8.28-yolo/src/application/yolo/runtime/best.names"),
+    : model_path("/home/dji/PSDK3.16.0-4.2-9.1-best/src/application/yolo/runtime/best.engine"),
+      labels_path("/home/dji/PSDK3.16.0-4.2-9.1-best/src/application/yolo/runtime/best.names"),
       input_size(640),
       confidence_threshold(0.3F),
       nms_threshold(0.5F)
