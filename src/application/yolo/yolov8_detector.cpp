@@ -186,7 +186,7 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
         cv::resize(image, resized, cv::Size(config_.input_size, config_.input_size));
         cv::dnn::blobFromImage(resized, blob, 1.0 / 255.0,
                                cv::Size(config_.input_size, config_.input_size),
-                               cv::Scalar(0, 0, 0), true, false, CV_32F);
+                               cv::Scalar(0, 0, 0), false, false, CV_32F);
         input_buffer_.assign(blob.ptr<float>(), blob.ptr<float>() + blob.total());
         const void *host_input = input_buffer_.data();
         if (input_type_ == nvinfer1::DataType::kHALF) {
