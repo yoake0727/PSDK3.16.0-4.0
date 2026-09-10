@@ -11,9 +11,7 @@ std::string RedactRtspUrl(const std::string &url);
 bool IsValidRtspUrl(const std::string &url);
 bool IsValidRtspTransport(const std::string &transport);
 bool ValidateRtspConfig(const H30tRtspConfig &config);
-bool ParseEnabledFlag(const char *value);
-int ParseMount(const char *value);
-H30tRtspConfig LoadRtspConfigFromEnvironment();
+H30tRtspConfig LoadRtspConfig();
 
 } // namespace h30t_config
 

@@ -102,7 +102,7 @@ private:
     bool StartSession(int mount)
     {
         queue_.SetState(H30tControlState::kStarting);
-        const H30tRtspConfig config = h30t_config::LoadRtspConfigFromEnvironment();
+        const H30tRtspConfig config = h30t_config::LoadRtspConfig();
         if (!h30t_config::ValidateRtspConfig(config))
             return FailStart("invalid or missing single RTSP URL");
         std::string error;

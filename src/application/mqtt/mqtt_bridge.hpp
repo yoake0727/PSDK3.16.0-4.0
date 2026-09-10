@@ -10,13 +10,8 @@
 
 struct MqttConfig
 {
-    std::string host = "192.168.144.125";
-    int port = 1883;
-    int keepalive = 60;
-    std::string username = "mqttuser";
-    std::string password = "mqtt";
-    std::string client_id = "M400_MANIFOLD3";
-    std::string drone_id = "1581FBDBW256500A2NXJ";
+    std::string host; int port=0; int keepalive=0;
+    std::string username, password, client_id, drone_id;
 };
 
 class MqttBridge

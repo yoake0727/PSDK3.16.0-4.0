@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.13.4)
 
 project(psdk_payload_app CXX)
 
 set(CMAKE_C_FLAGS "-pthread -std=gnu99")
-set(CMAKE_CXX_FLAGS "-std=c++11 -pthread")
+set(CMAKE_CXX_FLAGS "-std=c++17 -pthread")
 set(CMAKE_C_COMPILER "aarch64-linux-gnu-gcc")
 set(CMAKE_CXX_COMPILER "aarch64-linux-gnu-g++")
 set(CMAKE_EXE_LINKER_FLAGS "-pthread")
@@ -38,6 +38,7 @@ get_filename_component(REPOSITORY_ROOT
 set(STATIC_DEPS_ROOT "${REPOSITORY_ROOT}/third_party/aarch64")
 set(STATIC_DEPS_INCLUDE_DIR "${STATIC_DEPS_ROOT}/include")
 set(STATIC_DEPS_LIBRARY_DIR "${STATIC_DEPS_ROOT}/lib")
+find_package(miniocpp CONFIG REQUIRED PATHS "${STATIC_DEPS_ROOT}" /usr/local)
 set(MOSQUITTO_STATIC_LIBRARY
         "${STATIC_DEPS_LIBRARY_DIR}/libmosquitto.a")
 set(FFMPEG_STATIC_LIBRARIES
@@ -74,7 +75,7 @@ add_executable(${PROJECT_NAME}
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/include)
 
 # Try to see if user has OpenCV installed
-find_package(OpenCV REQUIRED COMPONENTS core imgproc dnn)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc dnn video)
 find_path(TENSORRT_INCLUDE_DIR NvInfer.h
         PATHS /usr/include/aarch64-linux-gnu REQUIRED)
 find_library(TENSORRT_LIBRARY nvinfer
@@ -122,6 +123,7 @@ target_link_libraries(${PROJECT_NAME}
         ${MOSQUITTO_STATIC_LIBRARY}
         ${TENSORRT_LIBRARY}
         ${CUDA_RUNTIME_LIBRARY}
+        miniocpp::miniocpp
         "-Wl,--end-group"
         pthread
         m

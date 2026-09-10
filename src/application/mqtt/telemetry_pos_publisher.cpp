@@ -70,6 +70,12 @@ uint64_t TelemetryPosPublisher::nowMs()
     return std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 }
 
+uint64_t TelemetryPosPublisher::monotonicMs()
+{
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+
 // --------------------------------------------------------------------------
 void TelemetryPosPublisher::runLoop()
 {
@@ -257,12 +263,14 @@ void TelemetryPosPublisher::onFusedPosition(double lat, double lon, float alt, u
     cache_.fused_lat = lat;
     cache_.fused_lon = lon;
     cache_.fused_alt = alt;
+    if (localizer_) localizer_->updateTelemetry({monotonicMs(), cache_.fused_lat, cache_.fused_lon, cache_.fused_height, cache_.pitch, cache_.roll, cache_.yaw});
 }
 
 void TelemetryPosPublisher::onFusedHeight(float height)
 {
     std::lock_guard<std::mutex> lock(cache_mutex_);
     cache_.fused_height = height;
+    if (localizer_) localizer_->updateTelemetry({monotonicMs(), cache_.fused_lat, cache_.fused_lon, cache_.fused_height, cache_.pitch, cache_.roll, cache_.yaw});
 }
 
 void TelemetryPosPublisher::onAttitude(double pitch, double roll, double yaw)
@@ -271,6 +279,7 @@ void TelemetryPosPublisher::onAttitude(double pitch, double roll, double yaw)
     cache_.pitch = pitch;
     cache_.roll = roll;
     cache_.yaw = yaw;
+    if (localizer_) localizer_->updateTelemetry({monotonicMs(), cache_.fused_lat, cache_.fused_lon, cache_.fused_height, cache_.pitch, cache_.roll, cache_.yaw});
 }
 // 为 static constexpr 提供类外定义（避免链接错误）
 constexpr int TelemetryPosPublisher::PUBLISH_INTERVAL_MS;

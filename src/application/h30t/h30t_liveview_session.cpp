@@ -24,6 +24,7 @@ std::shared_ptr<H30tRgbStreamPipeline> g_rgb_pipeline;
 H30tRgbFrameCallback g_rgb_frame_callback;
 E_DjiLiveViewCameraPosition g_camera_position = DJI_LIVEVIEW_CAMERA_POSITION_NO_1;
 std::atomic<bool> g_rgb_format_logged(false);
+std::atomic<uint8_t> g_active_camera_source(static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_IR_CAM));
 
 void InfraredImageCallback(E_DjiLiveViewCameraPosition position,
                            const uint8_t *data, uint32_t length,
@@ -44,7 +45,11 @@ void InfraredImageCallback(E_DjiLiveViewCameraPosition position,
           pipeline = g_rgb_pipeline;
           rgb_frame_callback = g_rgb_frame_callback; }
         if (rgb_frame_callback) {
-            rgb_frame_callback(data, length, image_info.width, image_info.height);
+            const H30tFrameMetadata metadata = {
+                static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count()),
+                static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count()),
+                image_info.frameId, g_active_camera_source.load()};
+            rgb_frame_callback(data, length, image_info.width, image_info.height, metadata);
         } else if (pipeline) {
             pipeline->PushRgb(data, length, image_info.width, image_info.height);
         }
@@ -176,6 +181,7 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
         return false;
     }
     impl_->active_source = default_source;
+    g_active_camera_source.store(static_cast<uint8_t>(default_source));
     impl_->infrared.reset(new H30tRgbStreamPipeline);
     if (!impl_->infrared->Start(infrared_config)) {
         error = "RGB RTSP pipeline initialization failed"; Stop(); return false;
@@ -221,6 +227,7 @@ bool H30tLiveviewSession::SwitchSource(H30tSource source)
             == DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS
             && static_cast<E_DjiCameraManagerStreamSource>(status.liveview_source_stream) == manager_source) {
             impl_->active_source = manager_source;
+            g_active_camera_source.store(static_cast<uint8_t>(manager_source));
             USER_LOG_INFO("H30T source switched without restarting RGB/RTSP pipeline: %d", static_cast<int>(manager_source));
             return true;
         }

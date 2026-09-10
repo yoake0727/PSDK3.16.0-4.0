@@ -1,31 +1,5 @@
 #include "h30t_config.hpp"
-
-#include <cerrno>
-#include <climits>
-#include <cstdlib>
-
-namespace {
-
-std::string EnvironmentOrDefault(const char *name, const char *fallback)
-{
-    const char *value = std::getenv(name);
-    return value != NULL && value[0] != '\0' ? value : fallback;
-}
-
-std::size_t ParseQueueBytes(const char *value, std::size_t fallback)
-{
-    if (value == NULL || value[0] == '\0') return fallback;
-    errno = 0;
-    char *end = NULL;
-    const unsigned long long parsed = std::strtoull(value, &end, 10);
-    if (errno != 0 || end == value || *end != '\0' || parsed == 0
-        || parsed > static_cast<unsigned long long>(SIZE_MAX)) {
-        return fallback;
-    }
-    return static_cast<std::size_t>(parsed);
-}
-
-} // namespace
+#include "app_config.hpp"
 
 namespace h30t_config {
 
@@ -62,26 +36,11 @@ bool ValidateRtspConfig(const H30tRtspConfig &config)
         && config.max_queue_bytes > 0;
 }
 
-bool ParseEnabledFlag(const char *value)
+H30tRtspConfig LoadRtspConfig()
 {
-    return value != NULL && std::string(value) == "1";
-}
-
-int ParseMount(const char *value)
-{
-    if (value == NULL || value[0] == '\0') return 1;
-    const std::string text(value);
-    return text == "1" ? 1 : text == "2" ? 2 : text == "3" ? 3 : 0;
-}
-
-H30tRtspConfig LoadRtspConfigFromEnvironment()
-{
+    const AppConfig &app=AppConfig::Instance();
     H30tRtspConfig config;
-    config.rtsp_url = EnvironmentOrDefault(
-        "H30T_RTSP_URL", "rtsp://127.0.0.1:8554/h30t");
-    config.transport = EnvironmentOrDefault("H30T_RTSP_TRANSPORT", "tcp");
-    config.max_queue_bytes = ParseQueueBytes(
-        std::getenv("H30T_RTSP_MAX_QUEUE_BYTES"), config.max_queue_bytes);
+    config.rtsp_url=app.String("h30t.rtsp.url"); config.transport=app.String("h30t.rtsp.transport"); config.max_queue_bytes=app.Size("h30t.rtsp.max_queue_bytes");
     return config;
 }
 

@@ -14,6 +14,8 @@ class FcSubscriptionManager;
 class LandingDetector;
 class H30tStreamController;
 class H30tYoloService;
+class Localizer;
+class MinioUploader;
 
 class SystemManager
 {
@@ -81,7 +83,9 @@ private:
     // === H30T 视频流控制 ===
     std::unique_ptr<H30tStreamController> h30t_stream_;
     std::shared_ptr<H30tYoloService> yolo_;
-    int h30t_mount_ = 1;  // 默认挂载点 1
+    std::unique_ptr<Localizer> localizer_;
+    std::unique_ptr<MinioUploader> minio_uploader_;
+    int h30t_mount_ = 0;
 
     std::atomic<bool> running_{false};
     std::string drone_id_;

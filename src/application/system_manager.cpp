@@ -13,11 +13,14 @@
 #include "h30t/h30t_stream_controller.hpp"
 #include "h30t/h30t_config.hpp"
 #include "yolo/h30t_yolo_service.hpp"
+#include "local/localizer.hpp"
+#include "local/minio_uploader.hpp"
 #include "dji_logger.h"
 #include "dji_platform.h"
 #include "../common/osal/osal.h"
 #include "dji_aircraft_info.h"
 #include "3rdparty/json.hpp"
+#include "app_config.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -66,21 +69,11 @@ bool SystemManager::init()
     // 1. 启动 H30T 视频流；RTSP 服务器由外部服务负责运行
     // 1. 创建 MQTT 桥接
     mqtt_ = std::unique_ptr<MqttBridge>(new MqttBridge(start_time_));
+    const AppConfig &app = AppConfig::Instance();
     MqttConfig cfg;
-
-    // 环境变量覆盖（省略，与你原来的相同）
-    const char *host = std::getenv("MQTT_HOST");
-    if (host) cfg.host = host;
-    const char *port = std::getenv("MQTT_PORT");
-    if (port) cfg.port = std::atoi(port);
-    const char *user = std::getenv("MQTT_USER");
-    if (user) cfg.username = user;
-    const char *pass = std::getenv("MQTT_PASS");
-    if (pass) cfg.password = pass;
-    const char *client = std::getenv("MQTT_CLIENT_ID");
-    if (client) cfg.client_id = client;
-    const char *drone = std::getenv("DRONE_ID");
-    if (drone) cfg.drone_id = drone;
+    cfg.host=app.String("mqtt.host"); cfg.port=app.Int("mqtt.port"); cfg.keepalive=app.Int("mqtt.keepalive");
+    cfg.username=app.String("mqtt.username"); cfg.password=app.String("mqtt.password");
+    cfg.client_id=app.String("mqtt.client_id"); cfg.drone_id=app.String("mqtt.drone_id");
 
     drone_id_ = cfg.drone_id;
 
@@ -124,14 +117,7 @@ bool SystemManager::init()
 bool SystemManager::startH30tStream()
 {
     // 1. 确定 H30T 挂载位置
-    h30t_mount_ = 3;  // 默认挂载点 3
-    const char *mount_env = std::getenv("H30T_MOUNT");
-    if (mount_env) {
-        int mount = std::atoi(mount_env);
-        if (mount >= 1 && mount <= 3) {
-            h30t_mount_ = mount;
-        }
-    }
+    h30t_mount_ = AppConfig::Instance().Int("h30t.mount");
 
     // 2. 启动 H30T 流控制器
     h30t_stream_ = std::unique_ptr<H30tStreamController>(
@@ -151,8 +137,8 @@ bool SystemManager::startH30tStream()
     const std::shared_ptr<H30tYoloService> yolo = yolo_;
     // 2. 设置 RGB 帧回调
     h30t_stream_->SetRgbFrameCallback(
-        [yolo](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height) {
-            if (yolo) yolo->SubmitRgbFrame(data, length, width, height);
+        [yolo](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height, const H30tFrameMetadata &metadata) {
+            if (yolo) yolo->SubmitRgbFrame(data, length, width, height, metadata);
         });
 
     if (!h30t_stream_->StartWorker()) {
@@ -178,11 +164,32 @@ bool SystemManager::startYolo()
     yolo_ = std::shared_ptr<H30tYoloService>(new H30tYoloService());
     std::string error;
     // 2. 启动 YOLO 服务，传入 Lambda 回调
-    if (!yolo_->Start([this](const std::string &payload) {
+    if (!yolo_->Start([this](const std::string &payload, const std::vector<uint8_t> &jpeg) {
             // 3. YOLO 回调：将检测结果通过 MQTT 发布
             if (mqtt_) {
                 mqtt_->publish("drone/" + drone_id_ + "/psdk/h30t/detections",
                                payload, 1, false);
+                std::string locations;
+                if (!localizer_ || !localizer_->processDetectionJson(payload, locations)) return;
+                if (!minio_uploader_) return;
+                const json input = json::parse(payload);
+                const bool infrared = input.value("source", std::string()) == "h30t_infrared";
+                const std::string name = std::to_string(input.value("frameId", uint64_t(0))) + ".jpg";
+                minio_uploader_->Enqueue(jpeg, name, infrared, locations,
+                    [this](const MinioUploadResult &result, const std::string &locationJson) {
+                        if (!mqtt_) return;
+                        json feedback;
+                        feedback["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";
+                        feedback["code"] = result.success ? 200 : -1;
+                        feedback["Msg"] = result.success ? "Success,图片已成功上传至MinIO" : ("图片上传失败：" + result.error);
+                        feedback["fileUrl"] = result.success ? result.file_url : "";
+                        mqtt_->publish("drone/" + drone_id_ + "/psdk/h30t/upload", feedback.dump(), 1, false);
+                        if (result.success) {
+                            json locations = json::parse(locationJson);
+                            for (auto &item : locations["locations"]) { item["imageUrl"] = result.file_url; item["objectName"] = result.object_name; }
+                            mqtt_->publish("drone/" + drone_id_ + "/psdk/h30t/locations", locations.dump(), 1, false);
+                        }
+                    });
             }
         }, [this](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height) {
             if (h30t_stream_) h30t_stream_->PushProcessedRgb(data, length, width, height);
@@ -218,6 +225,14 @@ bool SystemManager::startMqttDependencies()
     // 2. 创建位置遥测发布器（50Hz）
     telemetry_pos_ = std::unique_ptr<TelemetryPosPublisher>(
         new TelemetryPosPublisher(*mqtt_));
+    localizer_ = std::unique_ptr<Localizer>(new Localizer(cfg.drone_id));
+    minio_uploader_ = std::unique_ptr<MinioUploader>(new MinioUploader());
+    std::string minio_error;
+    if (!minio_uploader_->Start(minio_error)) {
+        USER_LOG_WARN("MinIO uploader disabled: %s", minio_error.c_str());
+        minio_uploader_.reset();
+    }
+    telemetry_pos_->setLocalizer(localizer_.get());
     telemetry_pos_->start();
 
     // 3. 创建命令执行器
@@ -295,6 +310,8 @@ void SystemManager::stopMqttDependencies()
         telemetry_pos_.reset();
         USER_LOG_INFO("TelemetryPosPublisher stopped");
     }
+    localizer_.reset();
+    if (minio_uploader_) { minio_uploader_->Stop(); minio_uploader_.reset(); }
 
     if (telemetry_) {
         telemetry_->stop();

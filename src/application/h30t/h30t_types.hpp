@@ -6,7 +6,8 @@
 #include <functional>
 #include <string>
 
-typedef std::function<void(const uint8_t *, uint32_t, uint16_t, uint16_t)>
+struct H30tFrameMetadata { uint64_t captureTimeMs; uint64_t captureMonotonicMs; uint32_t frameId; uint8_t cameraSource; };
+typedef std::function<void(const uint8_t *, uint32_t, uint16_t, uint16_t, const H30tFrameMetadata &)>
     H30tRgbFrameCallback;
 
 enum class H30tControlState {
@@ -48,8 +49,7 @@ struct H30tRtspConfig {
     std::string transport;
     std::size_t max_queue_bytes;
 
-    H30tRtspConfig()
-        : rtsp_url("rtsp://127.0.0.1:8554/h30t"), transport("tcp"), max_queue_bytes(8U * 1024U * 1024U) {}
+    H30tRtspConfig() : max_queue_bytes(0) {}
 };
 
 struct H30tStreamPipelineConfig {
@@ -57,9 +57,7 @@ struct H30tStreamPipelineConfig {
     std::string rtsp_transport;
     std::size_t max_queue_bytes;
 
-    H30tStreamPipelineConfig()
-        : rtsp_url("rtsp://192.168.147.45:8554/h30t"),
-          rtsp_transport("tcp"), max_queue_bytes(8U * 1024U * 1024U) {}
+    H30tStreamPipelineConfig() : max_queue_bytes(0) {}
 };
 
 struct H30tStreamStatus {

@@ -14,6 +14,7 @@
 #include "dji_typedef.h"
 #include "mqtt_bridge.hpp"
 #include "subscription/fc_subscription_manager.hpp" // IFcDataObserver
+#include "local/localizer.hpp"
 
 // 缓存结构（仅位置、姿态、高度）
 struct PosCache
@@ -45,6 +46,7 @@ public:
     void onFusedPosition(double lat, double lon, float alt, uint16_t visibleSats) override;
     void onFusedHeight(float height) override;
     void onAttitude(double pitch, double roll, double yaw) override;
+    void setLocalizer(Localizer *localizer) { localizer_ = localizer; }
 
     // 其他回调不需要，可空实现（但必须提供）
     void onGpsPosition(double, double, double) override {}
@@ -81,6 +83,7 @@ private:
 
     // 辅助：当前毫秒（系统时间）
     static uint64_t nowMs();
+    static uint64_t monotonicMs();
 
 private:
     MqttBridge &mqtt_;
@@ -98,6 +101,7 @@ private:
     double ntp_offset_sec_ = 0.0;
     bool ntp_initialized_ = false;
     std::string ntp_server_ = "192.168.144.130"; // 可改为从配置文件读取
+    Localizer *localizer_ = nullptr;
 
     static constexpr int SYNC_INTERVAL_SEC = 30;
     static constexpr int PUBLISH_INTERVAL_MS = 20; // 50Hz = 20ms
