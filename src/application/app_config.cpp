@@ -6,7 +6,7 @@ namespace {
 
 // 默认配置文件路径（相对工作目录）。
 // 若进程启动目录不是项目根，需要自行调整或保证工作目录正确。
-const char *kConfigPath = "src/app_json/app_config.yaml";
+const char *kConfigPath = "/home/dji/PSDK3.16.0-4.3-9.3-dingwei/src/app_json/app_config.yaml";
 
 } // namespace
 

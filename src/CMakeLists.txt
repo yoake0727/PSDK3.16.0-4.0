@@ -38,7 +38,23 @@ get_filename_component(REPOSITORY_ROOT
 set(STATIC_DEPS_ROOT "${REPOSITORY_ROOT}/third_party/aarch64")
 set(STATIC_DEPS_INCLUDE_DIR "${STATIC_DEPS_ROOT}/include")
 set(STATIC_DEPS_LIBRARY_DIR "${STATIC_DEPS_ROOT}/lib")
-find_package(miniocpp CONFIG REQUIRED PATHS "${STATIC_DEPS_ROOT}" /usr/local)
+
+# 让 find_package 在 third_party/aarch64 里找 miniocpp 和 httplib
+list(APPEND CMAKE_PREFIX_PATH "${STATIC_DEPS_ROOT}")
+set(httplib_DIR "${STATIC_DEPS_ROOT}/lib/cmake/httplib")
+set(miniocpp_DIR "${STATIC_DEPS_ROOT}/lib/cmake/miniocpp")
+
+# ---- 修复 zstd 别名冲突 ----
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(zstd REQUIRED IMPORTED_TARGET libzstd)
+set_property(TARGET PkgConfig::zstd PROPERTY IMPORTED_GLOBAL TRUE)
+if(NOT TARGET zstd::libzstd)
+    add_library(zstd::libzstd ALIAS PkgConfig::zstd)
+endif()
+# -------------------------
+
+find_package(httplib CONFIG REQUIRED)
+find_package(miniocpp REQUIRED)
 set(MOSQUITTO_STATIC_LIBRARY
         "${STATIC_DEPS_LIBRARY_DIR}/libmosquitto.a")
 set(FFMPEG_STATIC_LIBRARIES
@@ -126,6 +142,7 @@ target_link_libraries(${PROJECT_NAME}
         miniocpp::miniocpp
         "-Wl,--end-group"
         pthread
+        anl
         m
         dl)
 

@@ -134,10 +134,10 @@ bool SystemManager::startH30tStream()
         const H30tRtspConfig rtsp=h30t_config::LoadRtspConfig();
         H30tStreamPipelineConfig output; output.rtsp_url=rtsp.rtsp_url; output.rtsp_transport=rtsp.transport; output.max_queue_bytes=rtsp.max_queue_bytes;
         local_video_pipeline_=std::unique_ptr<H30tRgbStreamPipeline>(new H30tRgbStreamPipeline());
-        if(!local_video_pipeline_->Start(output)) { DjiLiveview_DeInit(); local_liveview_initialized_=false; local_video_pipeline_.reset(); return false; }
+        if(!local_video_pipeline_->Start(output)) { DjiLiveview_Deinit(); local_liveview_initialized_=false; local_video_pipeline_.reset(); return false; }
         video_input_=std::unique_ptr<VideoFileSource>(new VideoFileSource()); std::string error;
         if(!video_input_->Start(app.String("video.file_path"),camera_source,app.String("video.loop")=="true",
-            [this](const uint8_t*d,uint32_t n,uint16_t w,uint16_t h,const H30tFrameMetadata&m){if(yolo_)yolo_->SubmitRgbFrame(d,n,w,h,m);},error)) { USER_LOG_ERROR("Local video start failed: %s",error.c_str()); local_video_pipeline_->Stop(); local_video_pipeline_.reset(); DjiLiveview_DeInit(); local_liveview_initialized_=false; return false; }
+            [this](const uint8_t*d,uint32_t n,uint16_t w,uint16_t h,const H30tFrameMetadata&m){if(yolo_)yolo_->SubmitRgbFrame(d,n,w,h,m);},error)) { USER_LOG_ERROR("Local video start failed: %s",error.c_str()); local_video_pipeline_->Stop(); local_video_pipeline_.reset(); DjiLiveview_Deinit(); local_liveview_initialized_=false; return false; }
         USER_LOG_INFO("Local video input started; H30T image stream is disabled"); return true;
     }
     // 1. 确定 H30T 挂载位置
@@ -318,7 +318,7 @@ void SystemManager::stopH30tStream()
 {
     if(video_input_) { video_input_->Stop(); video_input_.reset(); }
     if(local_video_pipeline_) { local_video_pipeline_->Stop(); local_video_pipeline_.reset(); }
-    if(local_liveview_initialized_) { DjiLiveview_DeInit(); local_liveview_initialized_=false; }
+    if(local_liveview_initialized_) { DjiLiveview_Deinit(); local_liveview_initialized_=false; }
     if (h30t_stream_) {
         h30t_stream_->Shutdown();
         h30t_stream_.reset();

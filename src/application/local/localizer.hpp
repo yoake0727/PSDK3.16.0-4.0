@@ -35,7 +35,7 @@ struct LocalizerTelemetry {
 class Localizer {
 public:
     explicit Localizer(const std::string &droneId,
-                       const std::string &configPath = "src/app_json/app_config.yaml");
+                       const std::string &configPath = "/home/dji/PSDK3.16.0-4.3-9.3-dingwei/src/app_json/app_config.yaml");
     void updateTelemetry(const LocalizerTelemetry &sample);
     bool processDetectionJson(const std::string &payload, std::string &locationJson);
 private:

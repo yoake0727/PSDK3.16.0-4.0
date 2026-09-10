@@ -35,7 +35,7 @@ minio.bucket: inspection             # 存储桶名（不存在自动创建）
 minio.visible_folder: DroneFiles     # 可见光图片前缀
 minio.infrared_folder: INF_images    # 红外图片前缀
 minio.access_key: minioadmin         # Access Key（明文，需 chmod 600）
-minio.secret_key: change-me          # Secret Key（占位符，必须改真实值）
+minio.secret_key: minioadmin          # Secret Key（占位符，必须改真实值）
 minio.jpeg_quality: 90               # JPEG 质量（0~100，90 高质量）
 
 # ---------- 目标高度 ----------

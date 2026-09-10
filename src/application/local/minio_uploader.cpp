@@ -163,7 +163,7 @@ MinioUploadResult MinioUploader::Upload(const Task &t) const {
                                       16 * 1024 * 1024UL);
         args.bucket = bucket_;
         args.object = r.object_name;
-        args.headers["Content-Type"] = "image/jpeg";
+        args.headers.Add("Content-Type", "image/jpeg");
 
         // 执行上传
         auto response = client.PutObject(args);

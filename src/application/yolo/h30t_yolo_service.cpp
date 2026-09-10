@@ -5,7 +5,7 @@
 #include "app_config.hpp"
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
-
+#include "dji_camera_manager.h"
 #include <chrono>
 #include <cstdlib>
 #include <iomanip>

@@ -31,14 +31,14 @@ chmod +x tools/install_minio_cpp_manifold3.sh
 
 ## 3. 配置运行凭据
 
-账号密码已按项目约定统一写入 `src/app_json/app_config.yaml`。请将实际值写入：
+账号密码已按项目约定统一写入 `/home/dji/PSDK3.16.0-4.3-9.3-dingwei/src/app_json/app_config.yaml`。请将实际值写入：
 
 ```yaml
 minio.access_key: 实际访问密钥
 minio.secret_key: 实际密钥
 ```
 
-地址、桶、目录和账号密码统一在 `src/app_json/app_config.yaml` 配置。当前代码按 HTTP 连接；启用 HTTPS 前需要同步增加 `minio.secure` 配置处理及 CA 证书部署。
+地址、桶、目录和账号密码统一在 `/home/dji/PSDK3.16.0-4.3-9.3-dingwei/src/app_json/app_config.yaml` 配置。当前代码按 HTTP 连接；启用 HTTPS 前需要同步增加 `minio.secure` 配置处理及 CA 证书部署。
 
 ## 4. 编译与验证
 
