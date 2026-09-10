@@ -75,7 +75,7 @@ add_executable(${PROJECT_NAME}
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/include)
 
 # Try to see if user has OpenCV installed
-find_package(OpenCV REQUIRED COMPONENTS core imgproc dnn video)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc dnn video videoio)
 find_path(TENSORRT_INCLUDE_DIR NvInfer.h
         PATHS /usr/include/aarch64-linux-gnu REQUIRED)
 find_library(TENSORRT_LIBRARY nvinfer

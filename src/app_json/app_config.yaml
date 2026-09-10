@@ -8,159 +8,68 @@
 # ============================================================
 
 # ---------- MQTT 连接 ----------
-# Broker 地址（host:port 里的 host 部分）
-mqtt.host: 192.168.144.125
-
-# Broker 端口（1883 是标准 MQTT 明文端口）
-mqtt.port: 1883
-
-# 心跳间隔（秒）。客户端在无数据时向 Broker 发 PINGREQ 保持连接
-mqtt.keepalive: 60
-
-# MQTT 用户名
-mqtt.username: mqttuser
-
-# MQTT 密码（明文，请限制文件权限）
-mqtt.password: mqtt
-
-# MQTT 客户端 ID（同一 Broker 上必须唯一，重复会导致互相踢下线）
-mqtt.client_id: M400_MANIFOLD3
-
-# 无人机 ID（用于拼 topic，如 drone/<drone_id>/payload/ptz/ctl）
-mqtt.drone_id: 1581FBDBW256500A2NXJ
+mqtt.host: 192.168.144.125          # Broker 地址
+mqtt.port: 1883                      # Broker 端口（1883 明文，8883 TLS）
+mqtt.keepalive: 60                   # 心跳间隔（秒）
+mqtt.username: mqttuser              # MQTT 用户名
+mqtt.password: mqtt                  # MQTT 密码（明文，需 chmod 600）
+mqtt.client_id: M400_MANIFOLD3       # 客户端 ID（同一 Broker 必须唯一）
+mqtt.drone_id: 1581FBDBW256500A2NXJ  # 无人机 ID（用于拼 topic）
 
 # ---------- H30T 相机 ----------
-# 挂载口编号（1/2/3 对应 PAYLOAD_PORT_NO1/2/3）
-# 代码里 ConvertMount 会把它转成 SDK 枚举
-h30t.mount: 3
-
-# 拉流的 RTSP 地址（本地 MediaMTX 转发地址，不是相机原生地址）
-h30t.rtsp.url: rtsp://127.0.0.1:8554/h30t
-
-# RTSP 传输协议（tcp 更稳，udp 延迟低但易丢包）
-h30t.rtsp.transport: tcp
-
-# RTSP 推流管线最大队列字节数（4MB）
-# 队列满时新帧会被丢弃，避免内存无限增长
-h30t.rtsp.max_queue_bytes: 4194304
+h30t.mount: 3                        # 挂载口编号（1/2/3）
+h30t.rtsp.url: rtsp://127.0.0.1:8554/h30t  # 本地 MediaMTX 转发地址
+h30t.rtsp.transport: tcp             # RTSP 传输协议（tcp 稳，udp 延迟低）
+h30t.rtsp.max_queue_bytes: 4194304   # 推流管线最大队列（4MB）
 
 # ---------- YOLO 模型 ----------
-# TensorRT engine 路径（Jetson 上需先用 trtexec 从 .onnx 转出）
-yolo.model: /home/amov/AI_model/panel/best.engine
-
-# 标签文件路径（每行一个类名，行号即 classId）
-yolo.labels: /home/amov/AI_model/panel/labels.txt
-
-# 推理输入尺寸（640 是 YOLOv8 常用值；越大越准但越慢）
-yolo.input_size: 640
-
-# 置信度阈值（低于此值的检测被丢弃）
-yolo.confidence: 0.45
-
-# NMS 阈值（IoU 高于此值的重叠框会被合并）
-yolo.nms: 0.45
+yolo.model: /home/amov/AI_model/panel/best.engine   # TensorRT engine 路径
+yolo.labels: /home/amov/AI_model/panel/labels.txt   # 标签文件路径
+yolo.input_size: 640                 # 推理输入尺寸（越大越准越慢）
+yolo.confidence: 0.45                # 置信度阈值（低于此值丢弃）
+yolo.nms: 0.45                       # NMS 阈值（IoU 高于此值合并）
 
 # ---------- MinIO 对象存储 ----------
-# MinIO 服务地址（host:port，9000 是 S3 API 端口，9001 是控制台）
-minio.addr: 192.168.144.125:9000
-
-# 存储桶名（上传前会检查是否存在，不存在则自动创建）
-minio.bucket: inspection
-
-# 可见光图片存储前缀（完整路径：bucket/DroneFiles/xxx.jpg）
-minio.visible_folder: DroneFiles
-
-# 红外图片存储前缀（与可见光分开，便于区分来源）
-minio.infrared_folder: INF_images
-
-# MinIO Access Key（明文，请限制文件权限）
-minio.access_key: minioadmin
-
-# MinIO Secret Key（明文，务必改成真实值并限制文件权限）
-minio.secret_key: change-me
-
-# JPEG 编码质量（0~100，90 高质量，60~80 可显著减小体积）
-minio.jpeg_quality: 90
+minio.addr: 192.168.144.125:9000     # MinIO 地址（9000 API，9001 控制台）
+minio.bucket: inspection             # 存储桶名（不存在自动创建）
+minio.visible_folder: DroneFiles     # 可见光图片前缀
+minio.infrared_folder: INF_images    # 红外图片前缀
+minio.access_key: minioadmin         # Access Key（明文，需 chmod 600）
+minio.secret_key: change-me          # Secret Key（占位符，必须改真实值）
+minio.jpeg_quality: 90               # JPEG 质量（0~100，90 高质量）
 
 # ---------- 目标高度 ----------
-# 目标（隐患点）离地高度（米）
-# 地面光伏板场景填 0.0；目标有实际高度时按实际填
-# 影响 pixelToGpsWithYaw 里的 heightDiff，填错会让 GSD 偏差，定位整体偏移
-target_height_agl_m: 0.0
+target_height_agl_m: 0.0             # 目标离地高度（地面目标填 0.0）
 
 # ---------- SORT 跟踪参数 ----------
-# 最小确认帧数：连续匹配 N 帧后才分配正式 ID 并参与输出
-# 调大：更稳，但新目标输出延迟增加；调小：响应快，但误检易产生假 ID
-# 当前 3 帧 @15FPS ≈ 200ms 延迟
-tracking.min_hits: 3
-
-# 目标最大存活帧数：连续未匹配超过此值则删除轨迹
-# 调大：遮挡恢复能力强，但目标消失后残留时间长
-# 当前 8 帧 @15FPS ≈ 533ms
-tracking.max_age: 8
-
-# IoU 匹配阈值：检测框与预测框 IoU > 此值直接判定为同一目标
-# 调大：匹配更严格；调小：更宽松，密集目标易串 ID
-tracking.iou_threshold: 0.2
-
-# 中心距离辅助匹配系数（兜底快速目标）
-# 条件：IoU > 0 且 中心距离 <= 系数 × 检测框最长边
-# 调大：更能救回快速目标，但密集场景误匹配风险上升
-tracking.center_distance_factor: 1.0
+tracking.min_hits: 3                 # 连续命中 N 帧才输出（3 帧 ≈ 200ms）
+tracking.max_age: 8                  # 丢失 N 帧后删除（8 帧 ≈ 533ms）
+tracking.iou_threshold: 0.2          # IoU 匹配阈值（越大越严格）
+tracking.center_distance_factor: 1.0 # 中心距离兜底系数（越大越宽松）
 
 # ---------- 遥测匹配 ----------
-# 帧时间与遥测时间的最大允许差（毫秒）
-# 超过此值认为没有可用遥测，findNearestTelemetry 返回 false
-# 调大：容忍遥测缺失，但可能用到过时姿态
-# 当前 500ms 偏大，快速机动时姿态可能滞后明显
-telemetry.match_max_diff_ms: 500
+telemetry.match_max_diff_ms: 500     # 帧与遥测最大时间差（ms，偏大）
 
 # ---------- 可见光相机参数 ----------
-# 焦距（毫米）
-# 影响 focalLengthPix = focal / pixel_size，决定 GSD
-# 必须与实际镜头一致，否则定位整体缩放错误
-visible.focal_length_mm: 7.1
-
-# 单像元物理尺寸（毫米/像素）
-# 若相机做了 binning，要用等效后的尺寸
-# 例：4K 原生 1.45um 经 2x2 binning 后等效 2.9um
-# 填错会让 GSD 偏差近一倍
-visible.pixel_size_mm: 0.00097
-
-# 图像分辨率（像素）
-# 用于计算主点（图像中心）和像素偏移
-# 必须与检测 JSON 里的 imageWidth/Height 一致
-visible.image_width: 1440
-visible.image_height: 1080
-
-# 可见光镜头相对 RTK 天线的安装偏移（机体坐标系，米）
-# forward_m：机头方向为正
-# right_m  ：右翼方向为正
-# down_m   ：垂直向下为正
-# 全 0 表示镜头与 RTK 天线重合，不做杆臂补偿
-visible.lever_arm.forward_m: 0.0
-visible.lever_arm.right_m: 0.0
-visible.lever_arm.down_m: 0.0
+visible.focal_length_mm: 7.1         # 焦距（mm）
+visible.pixel_size_mm: 0.00097       # 像元尺寸（mm，0.97μm）
+visible.image_width: 1440            # 图像宽度（像素）
+visible.image_height: 1080           # 图像高度（像素）
+visible.lever_arm.forward_m: 0.562439   # 可见光杆臂：前向（m）
+visible.lever_arm.right_m: -0.504344    # 可见光杆臂：右向（m，负=西）
+visible.lever_arm.down_m: 0.250245      # 可见光杆臂：下向（m）
 
 # ---------- 红外相机参数 ----------
-# 红外焦距（毫米，实际焦距，不是等效焦距）
-# 等效焦距仅作视场参考，定位计算必须用实际焦距
-infrared.focal_length_mm: 24.0
+infrared.focal_length_mm: 24.0       # 红外焦距（mm，实际焦距）
+infrared.pixel_size_mm: 0.012        # 红外像元间距（mm，12μm）
+infrared.image_width: 1280           # 红外原生宽度（像素）
+infrared.image_height: 1024          # 红外原生高度（像素）
+infrared.lever_arm.forward_m: 0.562439  # 红外杆臂：前向（m）
+infrared.lever_arm.right_m: -0.504344   # 红外杆臂：右向（m，负=西）
+infrared.lever_arm.down_m: 0.250245     # 红外杆臂：下向（m）
 
-# 红外像元间距（毫米/像素，12um = 0.012mm）
-infrared.pixel_size_mm: 0.012
-
-# 红外原生分辨率（像素）
-# 注意：若源以 1440×1080 容器输出 5:4 内容（左右黑边），
-# 需先在 FFmpeg 里 crop 掉黑边，再 scale 回 1280×1024
-infrared.image_width: 1280
-infrared.image_height: 1024
-
-# 红外镜头相对 RTK 天线的安装偏移（机体坐标系，米）
-# 红外与可见光镜头安装位置不同，必须单独标定
-# 实测示例（机头朝北）：
-#   吊舱在 RTK 北 562.439mm、西 504.344mm、下方 250.245mm
-#   北→前向(+)，西→右翼负向(-)，下→正向(+)
-infrared.lever_arm.forward_m: 0.562439
-infrared.lever_arm.right_m: -0.504344
-infrared.lever_arm.down_m: 0.250245
+# ---------- 离线视频测试 ----------
+video.input_mode: local_file         # 输入模式（local_file / h30t）
+video.file_path: /home/amov/test/input.mp4  # 本地视频路径
+video.camera_source: h30t_infrared   # 模拟相机源（IR/ZOOM/WIDE）
+video.loop: false                    # 是否循环播放

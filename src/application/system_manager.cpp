@@ -12,11 +12,15 @@
 #include "subscription/landing_detector.hpp"
 #include "h30t/h30t_stream_controller.hpp"
 #include "h30t/h30t_config.hpp"
+#include "h30t/h30t_rgb_stream_pipeline.hpp"
+#include "local/video_file_source.hpp"
 #include "yolo/h30t_yolo_service.hpp"
 #include "local/localizer.hpp"
 #include "local/minio_uploader.hpp"
 #include "dji_logger.h"
 #include "dji_platform.h"
+#include "dji_liveview.h"
+#include "dji_camera_manager.h"
 #include "../common/osal/osal.h"
 #include "dji_aircraft_info.h"
 #include "3rdparty/json.hpp"
@@ -25,6 +29,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <chrono>
+#include <opencv2/imgproc.hpp>
 
 using json = nlohmann::json;
 
@@ -116,6 +121,25 @@ bool SystemManager::init()
 // ============================================================================
 bool SystemManager::startH30tStream()
 {
+    const AppConfig &app=AppConfig::Instance();
+    if(app.String("video.input_mode")=="local_file") {
+        const std::string source=app.String("video.camera_source");
+        uint8_t camera_source=0;
+        if(source=="h30t_infrared") camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_IR_CAM);
+        else if(source=="h30t_zoom") camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_ZOOM_CAM);
+        else if(source=="h30t_wide") camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_WIDE_CAM);
+        else { USER_LOG_ERROR("Invalid video.camera_source"); return false; }
+        if(DjiLiveview_Init()!=DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { USER_LOG_ERROR("DjiLiveview_Init failed for local video"); return false; }
+        local_liveview_initialized_=true;
+        const H30tRtspConfig rtsp=h30t_config::LoadRtspConfig();
+        H30tStreamPipelineConfig output; output.rtsp_url=rtsp.rtsp_url; output.rtsp_transport=rtsp.transport; output.max_queue_bytes=rtsp.max_queue_bytes;
+        local_video_pipeline_=std::unique_ptr<H30tRgbStreamPipeline>(new H30tRgbStreamPipeline());
+        if(!local_video_pipeline_->Start(output)) { DjiLiveview_DeInit(); local_liveview_initialized_=false; local_video_pipeline_.reset(); return false; }
+        video_input_=std::unique_ptr<VideoFileSource>(new VideoFileSource()); std::string error;
+        if(!video_input_->Start(app.String("video.file_path"),camera_source,app.String("video.loop")=="true",
+            [this](const uint8_t*d,uint32_t n,uint16_t w,uint16_t h,const H30tFrameMetadata&m){if(yolo_)yolo_->SubmitRgbFrame(d,n,w,h,m);},error)) { USER_LOG_ERROR("Local video start failed: %s",error.c_str()); local_video_pipeline_->Stop(); local_video_pipeline_.reset(); DjiLiveview_DeInit(); local_liveview_initialized_=false; return false; }
+        USER_LOG_INFO("Local video input started; H30T image stream is disabled"); return true;
+    }
     // 1. 确定 H30T 挂载位置
     h30t_mount_ = AppConfig::Instance().Int("h30t.mount");
 
@@ -193,6 +217,7 @@ bool SystemManager::startYolo()
             }
         }, [this](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height) {
             if (h30t_stream_) h30t_stream_->PushProcessedRgb(data, length, width, height);
+            if (local_video_pipeline_) { cv::Mat bgr(height,width,CV_8UC3,const_cast<uint8_t*>(data)); cv::Mat rgb; cv::cvtColor(bgr,rgb,cv::COLOR_BGR2RGB); local_video_pipeline_->PushRgb(rgb.data,static_cast<uint32_t>(rgb.total()*rgb.elemSize()),width,height); }
         }, error)) {
         // 4. 启动失败，输出错误信息
         USER_LOG_WARN("H30T YOLO disabled: %s", error.c_str());
@@ -291,6 +316,9 @@ bool SystemManager::startMqttDependencies()
 // ============================================================================
 void SystemManager::stopH30tStream()
 {
+    if(video_input_) { video_input_->Stop(); video_input_.reset(); }
+    if(local_video_pipeline_) { local_video_pipeline_->Stop(); local_video_pipeline_.reset(); }
+    if(local_liveview_initialized_) { DjiLiveview_DeInit(); local_liveview_initialized_=false; }
     if (h30t_stream_) {
         h30t_stream_->Shutdown();
         h30t_stream_.reset();

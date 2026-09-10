@@ -16,6 +16,8 @@ class H30tStreamController;
 class H30tYoloService;
 class Localizer;
 class MinioUploader;
+class VideoFileSource;
+class H30tRgbStreamPipeline;
 
 class SystemManager
 {
@@ -85,6 +87,9 @@ private:
     std::shared_ptr<H30tYoloService> yolo_;
     std::unique_ptr<Localizer> localizer_;
     std::unique_ptr<MinioUploader> minio_uploader_;
+    std::unique_ptr<VideoFileSource> video_input_;
+    std::unique_ptr<H30tRgbStreamPipeline> local_video_pipeline_;
+    bool local_liveview_initialized_ = false;
     int h30t_mount_ = 0;
 
     std::atomic<bool> running_{false};
