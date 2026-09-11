@@ -270,12 +270,12 @@ void Application::DjiUser_ApplicationStart()
         throw std::runtime_error("Start sdk application error.");
     }
 
-    USER_LOG_INFO("[NODE][application] core application started");
+    USER_LOG_INFO("core application started");
 }
 
 T_DjiReturnCode Application::DjiUser_PrintConsole(const uint8_t *data, uint16_t dataLen)
 {
-    printf("%s", data);
+    USER_LOG_INFO("%s", data);
 
     return DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS;
 }
@@ -351,7 +351,7 @@ T_DjiReturnCode Application::DjiUser_LocalWriteFsInit(const char *path)
     uint8_t ret;
 
     if (localTime == nullptr) {
-        printf("Get local time error.\r\n");
+        USER_LOG_ERROR("Get local time error.");
         return DJI_ERROR_SYSTEM_MODULE_CODE_SYSTEM_ERROR;
     }
 
@@ -359,7 +359,7 @@ T_DjiReturnCode Application::DjiUser_LocalWriteFsInit(const char *path)
         sprintf(folderName, "mkdir %s", DJI_LOG_FOLDER_NAME);
         ret = system(folderName);
         if (ret != 0) {
-            printf("Create new log folder error, ret:%d.\r\n", ret);
+            USER_LOG_ERROR("Create new log folder error, ret:%d.", ret);
             return DJI_ERROR_SYSTEM_MODULE_CODE_SYSTEM_ERROR;
         }
     }
@@ -373,13 +373,13 @@ T_DjiReturnCode Application::DjiUser_LocalWriteFsInit(const char *path)
     } else {
         ret = fseek(s_djiLogFileCnt, 0, SEEK_SET);
         if (ret != 0) {
-            printf("Seek log count file error, ret: %d, errno: %d.\r\n", ret, errno);
+        USER_LOG_ERROR("Seek log count file error, ret: %d, errno: %d.", ret, errno);
             return DJI_ERROR_SYSTEM_MODULE_CODE_SYSTEM_ERROR;
         }
 
         ret = fread((uint16_t * ) & logFileIndex, 1, sizeof(uint16_t), s_djiLogFileCnt);
         if (ret != sizeof(uint16_t)) {
-            printf("Read log file index error.\r\n");
+        USER_LOG_ERROR("Read log file index error.");
         }
     }
 
@@ -388,13 +388,13 @@ T_DjiReturnCode Application::DjiUser_LocalWriteFsInit(const char *path)
 
     ret = fseek(s_djiLogFileCnt, 0, SEEK_SET);
     if (ret != 0) {
-        printf("Seek log file error, ret: %d, errno: %d.\r\n", ret, errno);
+        USER_LOG_ERROR("Seek log file error, ret: %d, errno: %d.", ret, errno);
         return DJI_ERROR_SYSTEM_MODULE_CODE_SYSTEM_ERROR;
     }
 
     ret = fwrite((uint16_t * ) & logFileIndex, 1, sizeof(uint16_t), s_djiLogFileCnt);
     if (ret != sizeof(uint16_t)) {
-        printf("Write log file index error.\r\n");
+        USER_LOG_ERROR("Write log file index error.");
         fclose(s_djiLogFileCnt);
         return DJI_ERROR_SYSTEM_MODULE_CODE_SYSTEM_ERROR;
     }
@@ -415,7 +415,7 @@ T_DjiReturnCode Application::DjiUser_LocalWriteFsInit(const char *path)
         sprintf(systemCmd, "rm -rf %s_%04d*.log", path, currentLogFileIndex - DJI_LOG_MAX_COUNT);
         ret = system(systemCmd);
         if (ret != 0) {
-            printf("Remove file error, ret:%d.\r\n", ret);
+            USER_LOG_ERROR("Remove file error, ret:%d.", ret);
             return DJI_ERROR_SYSTEM_MODULE_CODE_SYSTEM_ERROR;
         }
     }
@@ -427,7 +427,7 @@ T_DjiReturnCode Application::DjiUser_LocalWriteFsInit(const char *path)
 
 static void DjiUser_NormalExitHandler(int signalNum) {
     USER_UTIL_UNUSED(signalNum);
-    USER_LOG_INFO("[NODE][application] Received signal, shutting down");
+    USER_LOG_INFO("Received signal, shutting down");
     
     if (g_exit_system_manager) {
         g_exit_system_manager->shutdown();

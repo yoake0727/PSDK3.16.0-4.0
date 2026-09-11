@@ -130,7 +130,7 @@ void H30tLiveviewSession::PushProcessedRgb(const uint8_t *data, uint32_t length,
     if (pipeline) {
         pipeline->PushRgb(data, length, width, height);
     } else {
-        USER_LOG_WARN("H30T processed RGB frame dropped: pipeline unavailable");
+            USER_LOG_ERROR("H30T processed RGB frame dropped: pipeline unavailable");
     }
 }
 
@@ -138,18 +138,18 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
                                 std::string &error)
 {
     Stop();
-    if (!ConvertMount(mount, impl_->mount, impl_->camera)) { error = "invalid mount position"; return false; }
+    if (!ConvertMount(mount, impl_->mount, impl_->camera)) { error = "invalid mount position"; USER_LOG_ERROR("%s", error.c_str()); return false; }
     T_DjiReturnCode code = DjiCameraManager_Init();
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { error = SdkError("camera manager initialization failed", code); return false; }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { error = SdkError("camera manager initialization failed", code); USER_LOG_ERROR("%s", error.c_str()); return false; }
     impl_->camera_manager = true;
     bool connected = false;
     code = DjiCameraManager_GetCameraConnectStatus(impl_->mount, &connected);
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || !connected) { error = SdkError("H30T is not connected", code); Stop(); return false; }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || !connected) { error = SdkError("H30T is not connected", code); USER_LOG_ERROR("%s", error.c_str()); Stop(); return false; }
     E_DjiCameraType type = DJI_CAMERA_TYPE_UNKNOWN;
     code = DjiCameraManager_GetCameraType(impl_->mount, &type);
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || type != DJI_CAMERA_TYPE_H30T) { error = SdkError("camera at requested mount is not H30T", code); Stop(); return false; }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || type != DJI_CAMERA_TYPE_H30T) { error = SdkError("camera at requested mount is not H30T", code); USER_LOG_ERROR("%s", error.c_str()); Stop(); return false; }
     code = DjiLiveview_Init();
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { error = SdkError("liveview initialization failed", code); Stop(); return false; }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { error = SdkError("liveview initialization failed", code); USER_LOG_ERROR("%s", error.c_str()); Stop(); return false; }
     impl_->liveview = true;
 
     H30tStreamPipelineConfig infrared_config;
@@ -161,6 +161,7 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     code = DjiCameraManager_SetStreamSource(impl_->mount, default_source);
     if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         error = SdkError("H30T infrared source selection failed", code);
+        USER_LOG_ERROR("%s", error.c_str());
         Stop();
         return false;
     }
@@ -177,6 +178,7 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     }
     if (!source_ready) {
         error = "H30T infrared source selection timed out";
+        USER_LOG_ERROR("%s", error.c_str());
         Stop();
         return false;
     }
@@ -184,7 +186,7 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     g_active_camera_source.store(static_cast<uint8_t>(default_source));
     impl_->infrared.reset(new H30tRgbStreamPipeline);
     if (!impl_->infrared->Start(infrared_config)) {
-        error = "RGB RTSP pipeline initialization failed"; Stop(); return false;
+        error = "RGB RTSP pipeline initialization failed"; USER_LOG_ERROR("%s", error.c_str()); Stop(); return false;
     }
     Attach(impl_->infrared, impl_->camera);
     {
@@ -195,7 +197,8 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     g_rgb_format_logged.store(false);
     code = DjiLiveview_StartImageStream(impl_->camera, kImageSource, PIXFMT_RGB_PACKED, InfraredImageCallback);
     if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
-            USER_LOG_INFO("Start image stream failed, error code: 0x%08X", returnCode); 
+            error = SdkError("image stream start failed", code);
+            USER_LOG_ERROR("Start image stream failed, error code: 0x%08X", static_cast<unsigned int>(code));
             Stop(); 
             return false;
     }

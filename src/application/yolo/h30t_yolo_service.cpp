@@ -145,7 +145,7 @@ void H30tYoloService::WorkerLoop()
 
         // 5. 推理失败：推原始帧给推流，跳过 JSON 构造
         if (!error.empty()) {
-            USER_LOG_WARN("H30T YOLO inference failed: %s", error.c_str());
+            USER_LOG_ERROR("H30T YOLO inference failed: %s", error.c_str());
             if (frame_callback_) frame_callback_(frame.data,
                 static_cast<uint32_t>(frame.total() * frame.elemSize()),
                 static_cast<uint16_t>(frame.cols), static_cast<uint16_t>(frame.rows));

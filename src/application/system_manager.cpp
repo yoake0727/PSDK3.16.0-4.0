@@ -68,7 +68,7 @@ bool SystemManager::init()
 {
     running_ = true;
     if (!startYolo()) {
-        USER_LOG_WARN("H30T YOLO startup failed; RTSP will continue without detection");
+        USER_LOG_ERROR("H30T YOLO startup failed; RTSP will continue without detection");
     }
 
     // 1. 启动 H30T 视频流；RTSP 服务器由外部服务负责运行
@@ -97,7 +97,7 @@ bool SystemManager::init()
     T_DjiReturnCode rc = DjiLogger_AddConsole(&mqttLogger);
     if (rc != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS)
     {
-        USER_LOG_WARN("[NODE][system_manager] MQTT logger attachment failed, rc=0x%08llX", rc);
+        USER_LOG_ERROR("[NODE][system_manager] MQTT logger attachment failed, rc=0x%08llX", rc);
     }
     else
     {
@@ -109,7 +109,7 @@ bool SystemManager::init()
         return false;
     }
     if (!startH30tStream()) {
-        USER_LOG_WARN("H30T stream startup failed; continuing in degraded mode");
+        USER_LOG_ERROR("H30T stream startup failed; continuing in degraded mode");
     }
     if (cmd_exec_) cmd_exec_->SetH30tStreamController(h30t_stream_.get());
     running_ = true;
@@ -287,7 +287,7 @@ bool SystemManager::startYolo()
             if (local_video_pipeline_) { cv::Mat bgr(height,width,CV_8UC3,const_cast<uint8_t*>(data)); cv::Mat rgb; cv::cvtColor(bgr,rgb,cv::COLOR_BGR2RGB); local_video_pipeline_->PushRgb(rgb.data,static_cast<uint32_t>(rgb.total()*rgb.elemSize()),width,height); }
         }, error)) {
         // 4. 启动失败，输出错误信息
-        USER_LOG_WARN("H30T YOLO disabled: %s", error.c_str());
+        USER_LOG_ERROR("H30T YOLO disabled: %s", error.c_str());
         yolo_.reset();
         return false;
     }
@@ -321,7 +321,7 @@ bool SystemManager::startMqttDependencies()
     minio_uploader_ = std::unique_ptr<MinioUploader>(new MinioUploader());
     std::string minio_error;
     if (!minio_uploader_->Start(minio_error)) {
-        USER_LOG_WARN("MinIO uploader disabled: %s", minio_error.c_str());
+        USER_LOG_ERROR("MinIO uploader disabled: %s", minio_error.c_str());
         minio_uploader_.reset();
     }
     telemetry_pos_->setLocalizer(localizer_.get());
@@ -331,7 +331,7 @@ bool SystemManager::startMqttDependencies()
     cmd_exec_ = std::unique_ptr<CommandExecutor>(new CommandExecutor(*mqtt_, cfg.drone_id));
     cmd_exec_->SetTelemetryPublisher(telemetry_.get());
     if (!cmd_exec_->EnsureFlightControllerInited()) {
-        USER_LOG_WARN("Flight controller initialization failed; local RTSP remains available");
+        USER_LOG_ERROR("Flight controller initialization failed; local RTSP remains available");
     }
     Osal_TaskSleepMs(3000);
     USER_LOG_INFO("[NODE][system_manager] flight controller stabilization wait completed");

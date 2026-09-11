@@ -117,19 +117,19 @@ bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
     std::string line;
     while (std::getline(labels_file, line)) if (!line.empty()) labels_.push_back(line);
     std::ifstream engine_file(config.model_path.c_str(), std::ios::binary | std::ios::ate);
-    if (!engine_file) { error = "cannot open TensorRT engine: " + config.model_path; return false; }
+    if (!engine_file) { error = "cannot open TensorRT engine: " + config.model_path; USER_LOG_ERROR("%s", error.c_str()); return false; }
     const std::streamsize engine_size = engine_file.tellg();
     engine_file.seekg(0, std::ios::beg);
     std::vector<char> serialized(static_cast<std::size_t>(engine_size));
     if (!engine_file.read(serialized.data(), engine_size)) {
-        error = "cannot read TensorRT engine"; return false;
+        error = "cannot read TensorRT engine"; USER_LOG_ERROR("%s", error.c_str()); return false;
     }
     runtime_ = nvinfer1::createInferRuntime(g_trt_logger);
-    if (!runtime_) { error = "createInferRuntime failed"; return false; }
+    if (!runtime_) { error = "createInferRuntime failed"; USER_LOG_ERROR("%s", error.c_str()); return false; }
     engine_ = runtime_->deserializeCudaEngine(serialized.data(), serialized.size());
-    if (!engine_) { error = "deserializeCudaEngine failed"; Reset(); return false; }
+    if (!engine_) { error = "deserializeCudaEngine failed"; USER_LOG_ERROR("%s", error.c_str()); Reset(); return false; }
     context_ = engine_->createExecutionContext();
-    if (!context_) { error = "createExecutionContext failed"; Reset(); return false; }
+    if (!context_) { error = "createExecutionContext failed"; USER_LOG_ERROR("%s", error.c_str()); Reset(); return false; }
 
     device_bindings_.assign(engine_->getNbBindings(), NULL);
     for (int i = 0; i < engine_->getNbBindings(); ++i) {
@@ -137,12 +137,12 @@ bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
         else output_binding_ = i;
     }
     if (input_binding_ < 0 || output_binding_ < 0 || engine_->getNbBindings() != 2) {
-        error = "TensorRT engine must have exactly one input and one output"; Reset(); return false;
+        error = "TensorRT engine must have exactly one input and one output"; USER_LOG_ERROR("%s", error.c_str()); Reset(); return false;
     }
     input_type_ = engine_->getBindingDataType(input_binding_);
     output_type_ = engine_->getBindingDataType(output_binding_);
     if (DataTypeSize(input_type_) == 0 || DataTypeSize(output_type_) == 0) {
-        error = "TensorRT engine input/output must be FP32 or FP16"; Reset(); return false;
+        error = "TensorRT engine input/output must be FP32 or FP16"; USER_LOG_ERROR("%s", error.c_str()); Reset(); return false;
     }
     nvinfer1::Dims input_dims = engine_->getBindingDimensions(input_binding_);
     if (input_dims.nbDims == 4 && input_dims.d[0] < 0) input_dims.d[0] = 1;
@@ -150,13 +150,13 @@ bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
     if (input_dims.nbDims == 4 && input_dims.d[3] < 0) input_dims.d[3] = config.input_size;
     if (!context_->setBindingDimensions(input_binding_, input_dims) ||
         !context_->allInputDimensionsSpecified()) {
-        error = "unsupported dynamic TensorRT input dimensions"; Reset(); return false;
+        error = "unsupported dynamic TensorRT input dimensions"; USER_LOG_ERROR("%s", error.c_str()); Reset(); return false;
     }
     const nvinfer1::Dims output_dims = context_->getBindingDimensions(output_binding_);
     const std::size_t input_count = ElementCount(input_dims);
     const std::size_t output_count = ElementCount(output_dims);
     if (input_count == 0 || output_count == 0 || output_dims.nbDims < 2) {
-        error = "invalid TensorRT binding dimensions"; Reset(); return false;
+        error = "invalid TensorRT binding dimensions"; USER_LOG_ERROR("%s", error.c_str()); Reset(); return false;
     }
     const int last = output_dims.d[output_dims.nbDims - 1];
     const int previous = output_dims.d[output_dims.nbDims - 2];
@@ -169,7 +169,7 @@ bool Yolov8Detector::Load(const YoloDetectorConfig &config, std::string &error)
     if (cudaStreamCreate(&stream_) != cudaSuccess ||
         cudaMalloc(&device_bindings_[input_binding_], input_count * DataTypeSize(input_type_)) != cudaSuccess ||
         cudaMalloc(&device_bindings_[output_binding_], output_count * DataTypeSize(output_type_)) != cudaSuccess) {
-        error = "TensorRT CUDA buffer allocation failed"; Reset(); return false;
+        error = "TensorRT CUDA buffer allocation failed"; USER_LOG_ERROR("%s", error.c_str()); Reset(); return false;
     }
     USER_LOG_INFO("TensorRT engine loaded: input=%zu, output=%dx%d",
                   input_count, output_channels_, output_candidates_);
@@ -204,7 +204,7 @@ std::vector<YoloDetection> Yolov8Detector::Detect(const cv::Mat &image, std::str
             cudaMemcpyAsync(host_output, device_bindings_[output_binding_],
                             output_buffer_.size() * DataTypeSize(output_type_), cudaMemcpyDeviceToHost, stream_) != cudaSuccess ||
             cudaStreamSynchronize(stream_) != cudaSuccess) {
-            error = "TensorRT inference failed"; return result;
+            error = "TensorRT inference failed"; USER_LOG_ERROR("%s", error.c_str()); return result;
         }
         if (output_type_ == nvinfer1::DataType::kHALF) {
             for (std::size_t i = 0; i < output_buffer_.size(); ++i) {

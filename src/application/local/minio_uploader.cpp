@@ -1,5 +1,6 @@
 #include "minio_uploader.hpp"
 #include "app_config.hpp"
+#include "dji_logger.h"
 #include <miniocpp/args.h>
 #include <miniocpp/client.h>
 #include <miniocpp/providers.h>
@@ -169,6 +170,7 @@ MinioUploadResult MinioUploader::Upload(const Task &t) const {
         auto response = client.PutObject(args);
         if (!response) {
             r.error = response.error().String();
+            USER_LOG_ERROR("MinIO upload failed for %s: %s", r.object_name.c_str(), r.error.c_str());
             return r;
         }
 
@@ -176,6 +178,7 @@ MinioUploadResult MinioUploader::Upload(const Task &t) const {
         r.file_url = "http://" + address_ + "/" + bucket_ + "/" + r.object_name;
     } catch (const std::exception &e) {
         r.error = e.what();
+        USER_LOG_ERROR("MinIO upload exception for %s: %s", r.object_name.c_str(), r.error.c_str());
     }
     return r;
 }

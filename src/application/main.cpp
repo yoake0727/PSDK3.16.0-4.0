@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     }
 
     // 3. 主线程等待（信号处理函数会调用 sys_mgr.shutdown() 并 exit）    
-    USER_LOG_INFO("[NODE][main] SystemManager started; waiting for shutdown signal");
+    USER_LOG_INFO("SystemManager started; waiting for shutdown signal");
     while (true)
     {
         Osal_TaskSleepMs(1000);

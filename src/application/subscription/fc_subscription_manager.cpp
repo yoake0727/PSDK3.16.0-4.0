@@ -248,7 +248,7 @@ void FcSubscriptionManager::notifyControlAuthority(uint8_t deviceStatus, uint8_t
         }                                                           \
         else                                                        \
         {                                                           \
-            USER_LOG_WARN("FC callback: manager instance is null"); \
+            USER_LOG_ERROR("FC callback: manager instance is null"); \
         }                                                           \
     } while (0)
 

@@ -62,10 +62,12 @@ bool VideoFileSource::Start(const std::string &path, uint8_t cameraSource, bool 
     cv::VideoCapture probe(path);
     if (!probe.isOpened()) {
         error = "Cannot open video.file_path: " + path;
+        USER_LOG_ERROR("%s", error.c_str());
         return false;
     }
     if (probe.get(cv::CAP_PROP_FPS) <= 0.0) {
         error = "Video FPS is invalid";
+        USER_LOG_ERROR("%s", error.c_str());
         return false;
     }
 

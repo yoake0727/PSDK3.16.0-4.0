@@ -220,7 +220,7 @@ void TelemetryPosPublisher::syncLoop()
         }
         else
         {
-            USER_LOG_WARN("PosPub NTP sync failed, using last offset");
+            USER_LOG_ERROR("PosPub NTP sync failed, using last offset");
         }
 
         // 分段 sleep，保证 stop() 能及时唤醒

@@ -1,4 +1,5 @@
 #include "gimbal_controller.hpp"
+#include "dji_logger.h"
 
 #include <cstdio>
 
@@ -29,14 +30,17 @@ T_DjiReturnCode GimbalController::Rotate(E_DjiMountPosition mount,
 {
     if (!initialized_) {
         error = "gimbal manager not initialized";
+        USER_LOG_ERROR("%s", error.c_str());
         return DJI_ERROR_SYSTEM_MODULE_CODE_INVALID_PARAMETER;
     }
     if (time <= 0.0 || time > 60.0) {
         error = "time must be greater than 0 and no more than 60 seconds";
+        USER_LOG_ERROR("%s", error.c_str());
         return DJI_ERROR_SYSTEM_MODULE_CODE_INVALID_PARAMETER;
     }
     if (pitch == 0.0F && roll == 0.0F && yaw == 0.0F) {
         error = "at least one angle must be non-zero";
+        USER_LOG_ERROR("%s", error.c_str());
         return DJI_ERROR_SYSTEM_MODULE_CODE_INVALID_PARAMETER;
     }
     T_DjiGimbalManagerRotation rotation = {};
@@ -53,6 +57,7 @@ T_DjiReturnCode GimbalController::PointDownward(E_DjiMountPosition mount,
 {
     if (!initialized_) {
         error = "gimbal manager not initialized";
+        USER_LOG_ERROR("%s", error.c_str());
         return DJI_ERROR_SYSTEM_MODULE_CODE_INVALID_PARAMETER;
     }
     return DjiGimbalManager_Reset(
@@ -65,6 +70,7 @@ T_DjiReturnCode GimbalController::Reset(E_DjiMountPosition mount,
 {
     if (!initialized_) {
         error = "gimbal manager not initialized";
+        USER_LOG_ERROR("%s", error.c_str());
         return DJI_ERROR_SYSTEM_MODULE_CODE_INVALID_PARAMETER;
     }
     return DjiGimbalManager_Reset(mount, mode);

@@ -1,5 +1,5 @@
 #include "mqtt_bridge.hpp"
-#include <iostream>
+#include <dji_logger.h>
 #include <cstring>
 
 MqttBridge::MqttBridge(std::chrono::steady_clock::time_point app_start_time)
@@ -18,7 +18,7 @@ bool MqttBridge::init(const MqttConfig &cfg)
     int rc = mosquitto_lib_init();
     if (rc != MOSQ_ERR_SUCCESS)
     {
-        std::cerr << "[MQTT] mosquitto_lib_init failed: " << mosquitto_strerror(rc) << "\n";
+        USER_LOG_ERROR("[MQTT] mosquitto_lib_init failed: %s", mosquitto_strerror(rc));
         return false;
     }
 
@@ -26,7 +26,7 @@ bool MqttBridge::init(const MqttConfig &cfg)
     mosq_ = mosquitto_new(cfg.client_id.c_str(), true, this);
     if (!mosq_)
     {
-        std::cerr << "[MQTT] mosquitto_new failed (maybe OOM or invalid client_id)\n";
+        USER_LOG_ERROR("[MQTT] mosquitto_new failed (maybe OOM or invalid client_id)");
         return false;
     }
 
@@ -37,8 +37,7 @@ bool MqttBridge::init(const MqttConfig &cfg)
             cfg.password.empty() ? nullptr : cfg.password.c_str());
         if (urc != MOSQ_ERR_SUCCESS)
         {
-            std::cerr << "[MQTT] set username/password failed: "
-                      << mosquitto_strerror(urc) << "\n";
+            USER_LOG_ERROR("[MQTT] set username/password failed: %s", mosquitto_strerror(urc));
         }
     }
 
@@ -50,9 +49,7 @@ bool MqttBridge::init(const MqttConfig &cfg)
     int connect_rc = mosquitto_connect(mosq_, cfg.host.c_str(), cfg.port, cfg.keepalive);
     if (connect_rc != MOSQ_ERR_SUCCESS)
     {
-        std::cerr << "[MQTT] connect failed to "
-                  << cfg.host << ":" << cfg.port
-                  << " - " << mosquitto_strerror(connect_rc) << "\n";
+        USER_LOG_ERROR("[MQTT] connect failed to %s:%d - %s", cfg.host.c_str(), cfg.port, mosquitto_strerror(connect_rc));
         mosquitto_destroy(mosq_);
         mosq_ = nullptr;
         return false;
@@ -61,14 +58,13 @@ bool MqttBridge::init(const MqttConfig &cfg)
     int loop_rc = mosquitto_loop_start(mosq_);
     if (loop_rc != MOSQ_ERR_SUCCESS)
     {
-        std::cerr << "[MQTT] loop start failed: " << mosquitto_strerror(loop_rc) << "\n";
+        USER_LOG_ERROR("[MQTT] loop start failed: %s", mosquitto_strerror(loop_rc));
         mosquitto_destroy(mosq_);
         mosq_ = nullptr;
         return false;
     }
 
-    std::cout << "[MQTT] connected to " << cfg.host << ":" << cfg.port
-              << " as " << cfg.client_id << "\n";
+    USER_LOG_INFO("[MQTT] connected to %s:%d as %s", cfg.host.c_str(), cfg.port, cfg.client_id.c_str());
     return true;
 }
 
@@ -80,7 +76,7 @@ bool MqttBridge::publish(const std::string &topic, const std::string &payload, i
 
     if (rc != MOSQ_ERR_SUCCESS)
     {
-        std::cerr << "[MQTT] publish failed: " << mosquitto_strerror(rc) << "\n";
+        USER_LOG_ERROR("[MQTT] publish failed: %s", mosquitto_strerror(rc));
     }
     return rc == MOSQ_ERR_SUCCESS;
 }
@@ -110,7 +106,7 @@ bool MqttBridge::subscribe(const std::string &topic, int qos)
     int rc = mosquitto_subscribe(mosq_, nullptr, topic.c_str(), qos);
     if (rc != MOSQ_ERR_SUCCESS)
     {
-        std::cerr << "[MQTT] subscribe failed: " << mosquitto_strerror(rc) << "\n";
+        USER_LOG_ERROR("[MQTT] subscribe failed: %s", mosquitto_strerror(rc));
         return false;
     }
     return true;
@@ -135,7 +131,7 @@ void MqttBridge::on_connect(struct mosquitto *mosq, void *obj, int rc)
 
     if (rc == MOSQ_ERR_SUCCESS)
     {
-        std::cout << "[MQTT] Connected to MQTT broker" << std::endl;
+        USER_LOG_INFO("[MQTT] Connected to MQTT broker");
         // 重连后自动恢复所有订阅
         self->subscribe_all_topics();
         // 连接成功后清除保留消息
@@ -144,7 +140,7 @@ void MqttBridge::on_connect(struct mosquitto *mosq, void *obj, int rc)
     }
     else
     {
-        std::cerr << "[MQTT] Connection failed: " << mosquitto_strerror(rc) << std::endl;
+        USER_LOG_ERROR("[MQTT] Connection failed: %s", mosquitto_strerror(rc));
     }
 }
 
@@ -182,11 +178,11 @@ void MqttBridge::on_message(struct mosquitto *mosq, void *obj, const struct mosq
         }
         catch (const std::exception &e)
         {
-            std::cerr << "[MQTT] message callback threw: " << e.what() << "\n";
+            USER_LOG_ERROR("[MQTT] message callback threw: %s", e.what());
         }
         catch (...)
         {
-            std::cerr << "[MQTT] message callback threw unknown exception\n";
+            USER_LOG_ERROR("[MQTT] message callback threw unknown exception");
         }
     }
 }
@@ -197,7 +193,7 @@ void MqttBridge::on_subscribe(struct mosquitto *mosq, void *obj, int mid, int qo
     if (!self)
         return;
 
-    std::cout << "[MQTT] Subscribed to topic with QoS: " << (granted_qos ? granted_qos[0] : 0) << std::endl;
+    USER_LOG_INFO("[MQTT] Subscribed to topic with QoS: %d", granted_qos ? granted_qos[0] : 0);
 }
 
 // ========== 新增：自动订阅所有保存的主题 ==========
@@ -210,9 +206,9 @@ void MqttBridge::subscribe_all_topics() {
     for (const std::string& topic : sub_topics_) {
         int rc = mosquitto_subscribe(mosq_, nullptr, topic.c_str(), 0);
         if (rc == MOSQ_ERR_SUCCESS) {
-            std::cout << "[MQTT] 恢复订阅主题: " << topic << std::endl;
+            USER_LOG_INFO("[MQTT] 恢复订阅主题: %s", topic.c_str());
         } else {
-            std::cerr << "[MQTT] 订阅失败: " << topic << " 错误: " << mosquitto_strerror(rc) << std::endl;
+            USER_LOG_ERROR("[MQTT] 订阅失败: %s 错误: %s", topic.c_str(), mosquitto_strerror(rc));
         }
     }
 }

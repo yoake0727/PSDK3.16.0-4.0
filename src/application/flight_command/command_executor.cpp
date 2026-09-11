@@ -413,7 +413,7 @@ bool CommandExecutor::EnsureFlightControllerInited()
     T_DjiReturnCode wrc = DjiWaypointV3_Init();
     if (wrc != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS)
     {
-        USER_LOG_WARN("DjiWaypointV3_Init returned 0x%08llX", wrc);
+        USER_LOG_ERROR("DjiWaypointV3_Init returned 0x%08llX", wrc);
     }
 
     fc_inited_.store(true);
@@ -505,7 +505,7 @@ bool CommandExecutor::UploadKmzFromUrl(const std::string &url, const std::string
             USER_LOG_INFO("KMZ upload success on attempt %d", attempt);
             return true;
         }
-        USER_LOG_WARN("KMZ upload failed 0x%08llX on attempt %d", rc2, attempt);
+        USER_LOG_ERROR("KMZ upload failed 0x%08llX on attempt %d", rc2, attempt);
         sleep_ms(200 * attempt);
     }
     return false;
@@ -926,7 +926,7 @@ void CommandExecutor::FlightWorkerThread()
             break;
 
         default:
-            USER_LOG_WARN("Unhandled FlightCommandType");
+            USER_LOG_ERROR("Unhandled FlightCommandType");
             break;
         }
     }

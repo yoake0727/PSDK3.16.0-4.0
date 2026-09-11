@@ -61,8 +61,9 @@ public:
             if (input.empty()) { std::unique_lock<std::mutex> lock(mutex); condition.wait(lock, [this]{ return !running.load() || has_frame; }); if (!running.load()) break; input.swap(rgb); has_frame=false; }
             T_DjiLiveviewImageInfo info = {}; info.pixFmt=PIXFMT_RGB_PACKED; info.width=width; info.height=height;
             const T_DjiReturnCode encode_rc = DjiLiveview_EncodeAFrameToH264(input.data(), static_cast<std::uint32_t>(input.size()), info, NULL);
-            if (encode_rc != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) USER_LOG_WARN("PSDK RGB H.264 encode failed: 0x%08llX", static_cast<unsigned long long>(encode_rc));
-            input.clear();
+            if (encode_rc != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) USER_LOG_ERROR("PSDK RGB H.264 encode failed: 0x%08llX", static_cast<unsigned long long>(encode_rc));
+            // 不保留上一帧的容量，避免工作线程长期占用大块用户态缓冲。
+            std::vector<std::uint8_t>().swap(input);
         }
         DjiLiveview_UnregEncoderCallback(); publisher.Close(); opened=false; active=NULL; SetStatus(H30tRtspState::kStopped, "Selected-source RGB pipeline stopped");
     }
@@ -71,7 +72,7 @@ public:
 H30tRgbStreamPipeline::Impl *H30tRgbStreamPipeline::Impl::active = NULL;
 H30tRgbStreamPipeline::H30tRgbStreamPipeline() : impl_(new Impl) {}
 H30tRgbStreamPipeline::~H30tRgbStreamPipeline() { Stop(); }
-bool H30tRgbStreamPipeline::Start(const H30tStreamPipelineConfig &config) { if (impl_->running.load() || !h30t_config::IsValidRtspUrl(config.rtsp_url)) return false; impl_.reset(new Impl); impl_->config=config; impl_->running=true; impl_->worker=std::thread(&Impl::Run, impl_.get()); return true; }
+bool H30tRgbStreamPipeline::Start(const H30tStreamPipelineConfig &config) { if (impl_->running.load() || impl_->worker.joinable() || !h30t_config::IsValidRtspUrl(config.rtsp_url)) return false; impl_->config=config; impl_->running=true; impl_->worker=std::thread(&Impl::Run, impl_.get()); return true; }
 void H30tRgbStreamPipeline::PushRgb(const std::uint8_t *data, std::size_t length, std::uint16_t width, std::uint16_t height) { if (!data || width==0 || height==0 || length < static_cast<std::size_t>(width)*height*3U) return; std::lock_guard<std::mutex> lock(impl_->mutex); if (impl_->has_frame) ++impl_->dropped; impl_->rgb.assign(data,data+length); impl_->width=width; impl_->height=height; impl_->has_frame=true; impl_->condition.notify_one(); }
 H30tStreamStatus H30tRgbStreamPipeline::SnapshotStatus() const { std::lock_guard<std::mutex> lock(impl_->mutex); H30tStreamStatus result=impl_->status; result.dropped_chunks=impl_->dropped; return result; }
 void H30tRgbStreamPipeline::Stop() { if (!impl_) return; impl_->running=false; impl_->condition.notify_all(); if (impl_->worker.joinable()) impl_->worker.join(); }
