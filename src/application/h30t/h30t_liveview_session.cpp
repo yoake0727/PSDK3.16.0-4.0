@@ -195,7 +195,9 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     g_rgb_format_logged.store(false);
     code = DjiLiveview_StartImageStream(impl_->camera, kImageSource, PIXFMT_RGB_PACKED, InfraredImageCallback);
     if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
-        error = SdkError("H30T RGB image subscription failed", code); Stop(); return false;
+            USER_LOG_INFO("Start image stream failed, error code: 0x%08X", returnCode); 
+            Stop(); 
+            return false;
     }
     impl_->infrared_started = true;
     USER_LOG_INFO("H30T switchable RGB RTSP target: %s",

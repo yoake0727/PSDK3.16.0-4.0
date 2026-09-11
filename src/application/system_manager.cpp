@@ -121,26 +121,91 @@ bool SystemManager::init()
 // ============================================================================
 bool SystemManager::startH30tStream()
 {
-    const AppConfig &app=AppConfig::Instance();
+    const AppConfig &app=AppConfig::Instance();   // 取全局配置单例，后续读配置项
+
+    // 若配置 video.input_mode == "local_file"，走"本地视频文件"分支
     if(app.String("video.input_mode")=="local_file") {
+
+        // 读取配置里指定的相机源字符串
         const std::string source=app.String("video.camera_source");
-        uint8_t camera_source=0;
-        if(source=="h30t_infrared") camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_IR_CAM);
-        else if(source=="h30t_zoom") camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_ZOOM_CAM);
-        else if(source=="h30t_wide") camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_WIDE_CAM);
-        else { USER_LOG_ERROR("Invalid video.camera_source"); return false; }
-        if(DjiLiveview_Init()!=DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { USER_LOG_ERROR("DjiLiveview_Init failed for local video"); return false; }
-        local_liveview_initialized_=true;
+        uint8_t camera_source=0;   // 用于存放映射后的 PSDK 相机源枚举值
+
+        // 将配置字符串映射为 PSDK 的相机源枚举
+        if(source=="h30t_infrared")
+            camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_IR_CAM);     // 红外相机
+        else if(source=="h30t_zoom")
+            camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_ZOOM_CAM);   // 变焦相机
+        else if(source=="h30t_wide")
+            camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_WIDE_CAM);   // 广角相机
+        else {
+            // 配置值不在支持列表内，报错并返回失败
+            USER_LOG_ERROR("Invalid video.camera_source");
+            return false;
+        }
+
+        // 初始化 PSDK Liveview（图传）模块，失败则报错返回
+        if(DjiLiveview_Init()!=DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
+            USER_LOG_ERROR("DjiLiveview_Init failed for local video");
+            return false;
+        }
+        local_liveview_initialized_=true;   // 标记 Liveview 已初始化，便于后续反初始化
+
+        // 加载 H30T 的 RTSP 配置（URL、传输方式、缓冲上限）
         const H30tRtspConfig rtsp=h30t_config::LoadRtspConfig();
-        H30tStreamPipelineConfig output; output.rtsp_url=rtsp.rtsp_url; output.rtsp_transport=rtsp.transport; output.max_queue_bytes=rtsp.max_queue_bytes;
+
+        // 组装视频管线配置：RTSP 地址、传输协议、最大队列字节数
+        H30tStreamPipelineConfig output;
+        output.rtsp_url=rtsp.rtsp_url;
+        output.rtsp_transport=rtsp.transport;
+        output.max_queue_bytes=rtsp.max_queue_bytes;
+
+        // 创建 RGB 流管线对象，负责编码并把帧推到 RTSP
         local_video_pipeline_=std::unique_ptr<H30tRgbStreamPipeline>(new H30tRgbStreamPipeline());
-        if(!local_video_pipeline_->Start(output)) { DjiLiveview_Deinit(); local_liveview_initialized_=false; local_video_pipeline_.reset(); return false; }
-        video_input_=std::unique_ptr<VideoFileSource>(new VideoFileSource()); std::string error;
-        if(!video_input_->Start(app.String("video.file_path"),camera_source,app.String("video.loop")=="true",
-            [this](const uint8_t*d,uint32_t n,uint16_t w,uint16_t h,const H30tFrameMetadata&m){if(yolo_)yolo_->SubmitRgbFrame(d,n,w,h,m);},error)) { USER_LOG_ERROR("Local video start failed: %s",error.c_str()); local_video_pipeline_->Stop(); local_video_pipeline_.reset(); DjiLiveview_Deinit(); local_liveview_initialized_=false; return false; }
-        USER_LOG_INFO("Local video input started; H30T image stream is disabled"); return true;
+
+        // 启动管线；失败则回滚（反初始化 Liveview、释放管线）并返回失败
+        if(!local_video_pipeline_->Start(output)) {
+            DjiLiveview_Deinit();
+            local_liveview_initialized_=false;
+            local_video_pipeline_.reset();
+            return false;
+        }
+
+        // 创建本地视频文件源对象，负责从文件逐帧读取
+        video_input_=std::unique_ptr<VideoFileSource>(new VideoFileSource());
+        std::string error;   // 用于接收启动失败时的错误信息
+
+        // 启动视频文件源：
+        //   - video.file_path：视频文件路径
+        //   - camera_source：相机源
+        //   - video.loop=="true"：是否循环播放
+        //   - 帧回调：每读到一帧就交给 YOLO 检测（若 yolo_ 存在）
+        // 失败则回滚所有已启动组件并返回失败
+        if(!video_input_->Start(app.String("video.file_path"),
+                                camera_source,
+                                app.String("video.loop")=="true",
+                                [this](const uint8_t*d,uint32_t n,uint16_t w,uint16_t h,
+                                    const H30tFrameMetadata&m){
+                                    if(yolo_) yolo_->SubmitRgbFrame(d,n,w,h,m);   // 提交 RGB 帧给 YOLO
+                                },
+                                error)) 
+        {
+            USER_LOG_ERROR("Local video start failed: %s",error.c_str());
+            local_video_pipeline_->Stop();
+            local_video_pipeline_.reset();
+            DjiLiveview_Deinit();
+            local_liveview_initialized_=false;
+            return false;
+        }
+
+        // 成功：本地视频输入已启动，H30T 实时图传被禁用
+        USER_LOG_INFO("Local video input started; H30T image stream is disabled");
+        return true;
     }
-    // 1. 确定 H30T 挂载位置
+
+    // ========== 分支二：H30T 实时流模式 ==========
+    // 走到这里说明 video.input_mode != "local_file"，使用 H30T 实时图传
+
+    // 1. 确定 H30T 挂载位置（如挂载点 3，来自配置 h30t.mount）
     h30t_mount_ = AppConfig::Instance().Int("h30t.mount");
 
     // 2. 启动 H30T 流控制器
@@ -148,37 +213,39 @@ bool SystemManager::startH30tStream()
         new H30tStreamController(
             [this](const std::string &cmd, const std::string &status,
                    const std::string &message) {
-                // H30T 状态回调：通过 MQTT 发送 ACK
-                if (!mqtt_) return;
+                // H30T 状态回调：把命令执行状态通过 MQTT 发 ACK 给地面端
+                if (!mqtt_) return;                      // MQTT 未就绪则不发
                 json ack;
-                ack["cmd"] = cmd;
-                ack["status"] = status;
-                ack["message"] = message;
-                ack["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";
+                ack["cmd"] = cmd;                        // 命令名
+                ack["status"] = status;                  // 执行状态
+                ack["message"] = message;                // 附加信息
+                ack["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";  // 当前架次号
                 mqtt_->publish("drone/" + drone_id_ + "/psdk/command/ack", ack.dump());
             }));
-    // 1. 获取 YOLO 服务的 shared_ptr（拷贝）
+
+    // 1. 拷贝 YOLO 服务的 shared_ptr，供回调捕获（避免 this 失效）
     const std::shared_ptr<H30tYoloService> yolo = yolo_;
-    // 2. 设置 RGB 帧回调
+
+    // 2. 设置 RGB 帧回调：每收到一帧就提交给 YOLO 检测
     h30t_stream_->SetRgbFrameCallback(
-        [yolo](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height, const H30tFrameMetadata &metadata) {
+        [yolo](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height,
+               const H30tFrameMetadata &metadata) {
             if (yolo) yolo->SubmitRgbFrame(data, length, width, height, metadata);
         });
 
+    // 启动流控制器的工作线程（负责拉流、解码、分发帧）
     if (!h30t_stream_->StartWorker()) {
         USER_LOG_ERROR("H30T worker thread start failed");
         h30t_stream_.reset();
         return false;
     }
 
+    // 请求开始 H30T 流（在指定挂载点上）
     if (!h30t_stream_->RequestStart(h30t_mount_)) {
-        USER_LOG_ERROR("H30T dual stream start request failed on mount %d", h30t_mount_);
         h30t_stream_->Shutdown();
         h30t_stream_.reset();
         return false;
     }
-
-    USER_LOG_INFO("[NODE][system_manager] H30T dual stream start requested on mount %d", h30t_mount_);
     return true;
 }
 

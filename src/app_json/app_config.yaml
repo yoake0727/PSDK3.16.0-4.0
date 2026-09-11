@@ -23,8 +23,8 @@ h30t.rtsp.transport: tcp             # RTSP 传输协议（tcp 稳，udp 延迟�
 h30t.rtsp.max_queue_bytes: 4194304   # 推流管线最大队列（4MB）
 
 # ---------- YOLO 模型 ----------
-yolo.model: /home/amov/AI_model/panel/best.engine   # TensorRT engine 路径
-yolo.labels: /home/amov/AI_model/panel/labels.txt   # 标签文件路径
+yolo.model: /home/dji/PSDK3.16.0-4.3-9.3-dingwei/src/application/yolo/runtime/best.engine   # TensorRT engine 路径
+yolo.labels: /home/dji/PSDK3.16.0-4.3-9.3-dingwei/src/application/yolo/runtime/best.names   # 标签文件路径
 yolo.input_size: 640                 # 推理输入尺寸（越大越准越慢）
 yolo.confidence: 0.45                # 置信度阈值（低于此值丢弃）
 yolo.nms: 0.45                       # NMS 阈值（IoU 高于此值合并）
@@ -69,7 +69,7 @@ infrared.lever_arm.right_m: -0.504344   # 红外杆臂：右向（m，负=西）
 infrared.lever_arm.down_m: 0.250245     # 红外杆臂：下向（m）
 
 # ---------- 离线视频测试 ----------
-video.input_mode: local_file         # 输入模式（local_file / h30t）
-video.file_path: /home/amov/test/input.mp4  # 本地视频路径
-video.camera_source: h30t_infrared   # 模拟相机源（IR/ZOOM/WIDE）
-video.loop: false                    # 是否循环播放
+video.input_mode: h30t         # 输入模式（local_file / h30t）
+video.file_path: /home/dji/test.mp4  # 本地视频路径
+video.camera_source: h30t_zoom   # 模拟相机源（IR/ZOOM/WIDE）
+video.loop: true                    # 是否循环播放
