@@ -1,0 +1,13 @@
+prefix=${pcfiledir}/../..
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: miniocpp
+Description: MinIO C++ Client SDK provides simple APIs to access S3 compatible object storage
+Version: 1.0.0
+
+Requires: libcrypto libssl pugixml zlib
+Libs: -L${libdir} -lminio
+Libs.private: -lminiocpp_inih
+Cflags: -I${includedir}
