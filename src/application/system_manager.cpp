@@ -334,7 +334,7 @@ bool SystemManager::startMqttDependencies()
         USER_LOG_ERROR("Flight controller initialization failed; local RTSP remains available");
     }
     Osal_TaskSleepMs(3000);
-    USER_LOG_INFO("[NODE][system_manager] flight controller stabilization wait completed");
+    USER_LOG_INFO("flight controller stabilization wait completed");
 
     // 4. 设置 MQTT 命令回调
     mqtt_->set_message_callback([this](const std::string &topic,
@@ -373,7 +373,7 @@ bool SystemManager::startMqttDependencies()
         USER_LOG_ERROR("FcSubscriptionManager start failed");
         return false;
     }
-    USER_LOG_INFO("[NODE][system_manager] MQTT/telemetry/FC services started");
+    USER_LOG_INFO("MQTT/telemetry/FC services started");
 
     return true;
 }
@@ -446,5 +446,5 @@ void SystemManager::shutdown()
     stopYolo();
     stopMqttDependencies();
     g_sys_mgr_for_log = nullptr;
-    USER_LOG_INFO("[NODE][system_manager] shutdown complete");
+    USER_LOG_INFO("shutdown complete");
 }
