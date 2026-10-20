@@ -154,8 +154,8 @@ void H30tYoloService::WorkerLoop()
 
         // 6. 构造检测结果 JSON
         json payload;
-        payload["timestampMs"] = metadata.captureTimeMs;              // 墙钟时间，展示用
-        payload["monotonicTimestampMs"] = metadata.captureMonotonicMs; // 单调时钟，Localizer 对齐用
+        payload["timestampMs"] = metadata.captureTimeMs;               // 妙算3系统时间，Localizer 对齐用
+        payload["monotonicTimestampMs"] = metadata.captureMonotonicMs; // 仅调试参考，不再用于对齐
         payload["frameId"] = metadata.frameId;
 
         // source 映射：IR_CAM → "h30t_infrared"，ZOOM_CAM → "h30t_zoom"，其余 → "h30t_wide"
