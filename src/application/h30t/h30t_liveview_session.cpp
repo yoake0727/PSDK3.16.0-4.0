@@ -137,34 +137,75 @@ void H30tLiveviewSession::PushProcessedRgb(const uint8_t *data, uint32_t length,
 bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
                                 std::string &error)
 {
+    USER_LOG_INFO("[H30T-SESS] Start: mount=%d", mount);                    // ① 进入
+
     Stop();
-    if (!ConvertMount(mount, impl_->mount, impl_->camera)) { error = "invalid mount position"; USER_LOG_ERROR("%s", error.c_str()); return false; }
+    USER_LOG_INFO("[H30T-SESS] step0 OK: Stop()");                          // ②
+
+    if (!ConvertMount(mount, impl_->mount, impl_->camera)) {
+        error = "invalid mount position";
+        USER_LOG_ERROR("[H30T-SESS] step1 FAILED: %s", error.c_str());
+        return false;
+    }
+    USER_LOG_INFO("[H30T-SESS] step1 OK: ConvertMount");                    // ③
+
     T_DjiReturnCode code = DjiCameraManager_Init();
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { error = SdkError("camera manager initialization failed", code); USER_LOG_ERROR("%s", error.c_str()); return false; }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
+        error = SdkError("camera manager initialization failed", code);
+        USER_LOG_ERROR("[H30T-SESS] step2 FAILED: %s", error.c_str());
+        return false;
+    }
     impl_->camera_manager = true;
+    USER_LOG_INFO("[H30T-SESS] step2 OK: DjiCameraManager_Init");           // ④
+
     bool connected = false;
     code = DjiCameraManager_GetCameraConnectStatus(impl_->mount, &connected);
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || !connected) { error = SdkError("H30T is not connected", code); USER_LOG_ERROR("%s", error.c_str()); Stop(); return false; }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || !connected) {
+        error = SdkError("H30T is not connected", code);
+        USER_LOG_ERROR("[H30T-SESS] step3 FAILED: %s (connected=%d)",
+                       error.c_str(), (int)connected);
+        Stop();
+        return false;
+    }
+    USER_LOG_INFO("[H30T-SESS] step3 OK: camera connected");                // ⑤
+
     E_DjiCameraType type = DJI_CAMERA_TYPE_UNKNOWN;
     code = DjiCameraManager_GetCameraType(impl_->mount, &type);
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || type != DJI_CAMERA_TYPE_H30T) { error = SdkError("camera at requested mount is not H30T", code); USER_LOG_ERROR("%s", error.c_str()); Stop(); return false; }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS || type != DJI_CAMERA_TYPE_H30T) {
+        error = SdkError("camera at requested mount is not H30T", code);
+        USER_LOG_ERROR("[H30T-SESS] step4 FAILED: %s (type=%d)",
+                       error.c_str(), (int)type);
+        Stop();
+        return false;
+    }
+    USER_LOG_INFO("[H30T-SESS] step4 OK: camera type H30T");                // ⑥
+
     code = DjiLiveview_Init();
-    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) { error = SdkError("liveview initialization failed", code); USER_LOG_ERROR("%s", error.c_str()); Stop(); return false; }
+    if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
+        error = SdkError("liveview initialization failed", code);
+        USER_LOG_ERROR("[H30T-SESS] step5 FAILED: %s", error.c_str());
+        Stop();
+        return false;
+    }
     impl_->liveview = true;
+    USER_LOG_INFO("[H30T-SESS] step5 OK: DjiLiveview_Init");                // ⑦
 
     H30tStreamPipelineConfig infrared_config;
     infrared_config.rtsp_url = config.rtsp_url;
     infrared_config.rtsp_transport = config.transport;
     infrared_config.max_queue_bytes = config.max_queue_bytes;
     impl_->pipeline_config = infrared_config;
+
     const E_DjiCameraManagerStreamSource default_source = DJI_CAMERA_MANAGER_SOURCE_IR_CAM;
     code = DjiCameraManager_SetStreamSource(impl_->mount, default_source);
     if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         error = SdkError("H30T infrared source selection failed", code);
-        USER_LOG_ERROR("%s", error.c_str());
+        USER_LOG_ERROR("[H30T-SESS] step6 FAILED: %s", error.c_str());
         Stop();
         return false;
     }
+    USER_LOG_INFO("[H30T-SESS] step6 OK: SetStreamSource(IR)");             // ⑧
+
     bool source_ready = false;
     for (int i = 0; i < 10; ++i) {
         T_DjiCameraCurrentCameraStatus status = {};
@@ -178,16 +219,24 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     }
     if (!source_ready) {
         error = "H30T infrared source selection timed out";
-        USER_LOG_ERROR("%s", error.c_str());
+        USER_LOG_ERROR("[H30T-SESS] step7 FAILED: %s", error.c_str());
         Stop();
         return false;
     }
+    USER_LOG_INFO("[H30T-SESS] step7 OK: source ready");                    // ⑨
+
     impl_->active_source = default_source;
     g_active_camera_source.store(static_cast<uint8_t>(default_source));
+
     impl_->infrared.reset(new H30tRgbStreamPipeline);
     if (!impl_->infrared->Start(infrared_config)) {
-        error = "RGB RTSP pipeline initialization failed"; USER_LOG_ERROR("%s", error.c_str()); Stop(); return false;
+        error = "RGB RTSP pipeline initialization failed";
+        USER_LOG_ERROR("[H30T-SESS] step8 FAILED: %s", error.c_str());
+        Stop();
+        return false;
     }
+    USER_LOG_INFO("[H30T-SESS] step8 OK: RTSP pipeline started");           // ⑩
+
     Attach(impl_->infrared, impl_->camera);
     {
         std::lock_guard<std::mutex> lock(g_dispatch_mutex);
@@ -195,16 +244,23 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
     }
     impl_->attached = true;
     g_rgb_format_logged.store(false);
-    code = DjiLiveview_StartImageStream(impl_->camera, kImageSource, PIXFMT_RGB_PACKED, InfraredImageCallback);
+    USER_LOG_INFO("[H30T-SESS] step9 OK: Attach + callback set");           // ⑪
+
+    USER_LOG_INFO("[H30T-SESS] step10: DjiLiveview_StartImageStream ...");  // ⑫
+    code = DjiLiveview_StartImageStream(impl_->camera, kImageSource,
+                                        PIXFMT_RGB_PACKED, InfraredImageCallback);
     if (code != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
-            error = SdkError("image stream start failed", code);
-            USER_LOG_ERROR("Start image stream failed, error code: 0x%08X", static_cast<unsigned int>(code));
-            Stop(); 
-            return false;
+        error = SdkError("image stream start failed", code);
+        USER_LOG_ERROR("[H30T-SESS] step10 FAILED: %s (code=0x%08X)",
+                       error.c_str(), static_cast<unsigned int>(code));
+        Stop();
+        return false;
     }
     impl_->infrared_started = true;
-    USER_LOG_INFO("H30T switchable RGB RTSP target: %s",
-                  h30t_config::RedactRtspUrl(config.rtsp_url).c_str());
+    USER_LOG_INFO("[H30T-SESS] step10 OK: StartImageStream");               // ⑬
+
+    USER_LOG_INFO("[H30T-SESS] success: RTSP target %s",
+                  h30t_config::RedactRtspUrl(config.rtsp_url).c_str());     // ⑭
     return true;
 }
 

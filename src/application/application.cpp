@@ -275,8 +275,7 @@ void Application::DjiUser_ApplicationStart()
 
 T_DjiReturnCode Application::DjiUser_PrintConsole(const uint8_t *data, uint16_t dataLen)
 {
-    USER_LOG_INFO("%s", data);
-
+    printf("%s", data);
     return DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS;
 }
 
