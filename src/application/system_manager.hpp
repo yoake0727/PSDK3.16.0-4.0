@@ -13,6 +13,8 @@ class CommandExecutor;
 class FcSubscriptionManager;
 class LandingDetector;
 class H30tStreamController;
+class H30tDownloader;
+class H30tWidget;
 
 class SystemManager
 {
@@ -39,6 +41,12 @@ public:
     H30tStreamController* getH30tStreamController() const {
         return h30t_stream_.get();
     }
+    /**
+     * @brief 获取 H30T 原图下载服务（未启用时为 nullptr）
+     */
+    H30tDownloader* getH30tDownloader() const {
+        return h30t_downloader_.get();
+    }
 
 private:
     void loadMqttConfig();   // 如果不需要可以从头文件中移除声明
@@ -62,6 +70,17 @@ private:
     void stopH30tStream();
 
     /**
+     * @brief 停止 H30T 原图下载服务
+     */
+    void stopH30tDownloader();
+
+    /**
+     * @brief 启动 H30T 原图下载服务（H30T_DL_ENABLE=1 时生效）
+     * @return true 成功（含未启用），false 失败
+     */
+    bool startH30tDownloader();
+
+    /**
      * @brief 停止 MQTT 依赖的服务
      */
     void stopMqttDependencies();
@@ -77,7 +96,13 @@ private:
 
     // === H30T 视频流控制 ===
     std::unique_ptr<H30tStreamController> h30t_stream_;
-    int h30t_mount_ = 1;  // 默认挂载点 1
+    int h30t_mount_ = 2;  // 默认挂载点 1
+
+    // === H30T 原图下载服务 ===
+    std::unique_ptr<H30tDownloader> h30t_downloader_;
+
+    // === H30T 下载参数自定义控件（Pilot 2） ===
+    std::unique_ptr<H30tWidget> h30t_widget_;
 
     std::atomic<bool> running_{false};
     std::string drone_id_;

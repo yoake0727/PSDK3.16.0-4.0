@@ -30,7 +30,10 @@
 #include <dji_core.h>
 #include <dji_aircraft_info.h>
 #include <csignal>
+#include <cstdlib>
+#include <string>
 #include "dji_sdk_config.h"
+#include "widget/h30t_widget.hpp"
 
 #include "../common/osal/osal.h"
 #include "../common/osal/osal_fs.h"
@@ -248,11 +251,30 @@ void Application::DjiUser_ApplicationStart()
         throw std::runtime_error("Set serial number error");
     }
 
-    /*returnCode = DjiTest_WidgetStartService();
+    // Widget UI 配置必须在核心应用启动前注册。下载模块的 HMS 初始化会
+    // 检查该配置；如果等到 SystemManager 初始化时再注册，下载文件列表
+    // 会以 0x000000E3 失败（Have not set UI widget config）。
+    const char *widget_enable = std::getenv("H30T_WIDGET_ENABLE");
+    const char *download_enable = std::getenv("H30T_DL_ENABLE");
+    const bool widget_config_required =
+        (widget_enable == nullptr || std::string(widget_enable) != "0")
+        || (download_enable != nullptr && std::string(download_enable) == "1");
+    if (widget_config_required) {
+        std::string widget_error;
+        if (!H30tWidget::InitUiConfig(std::string(), &widget_error)) {
+            USER_LOG_ERROR("[NODE][application] widget ui config init failed: %s",
+                           widget_error.c_str());
+        } else if (!H30tWidget::RegisterHandlers(&widget_error)) {
+            USER_LOG_ERROR("[NODE][application] widget handler registration failed: %s",
+                           widget_error.c_str());
+        }
+    }
+    /*
+    returnCode = DjiTest_WidgetStartService();
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("widget sample init error");
     }
-
+    
     returnCode = DjiTest_HmsCustomizationStartService();
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("DjiTest_HmsCustomizationStartService, error code:0x%08llX", returnCode);

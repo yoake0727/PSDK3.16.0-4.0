@@ -12,6 +12,9 @@
 #include "subscription/landing_detector.hpp"
 #include "h30t/h30t_stream_controller.hpp"
 #include "h30t/h30t_config.hpp"
+#include "downloader/h30t_downloader.hpp"
+#include "downloader/download_config.hpp"
+#include "widget/h30t_widget.hpp"
 #include "dji_logger.h"
 #include "dji_platform.h"
 #include "../common/osal/osal.h"
@@ -58,6 +61,23 @@ T_DjiReturnCode SystemManager::mqttLogCallback(const uint8_t *data, uint16_t dat
 bool SystemManager::init()
 {
     // USER_LOG_INFO("[NODE][system_manager] init begin");
+
+    // 0. 自定义控件 UI 配置必须先于相机管理器初始化
+    //    PSDK 下载模块初始化时会校验控件 UI 配置，未注册会导致下载数据初始化失败(0x000000E3)
+    const char *widget_enable_env = std::getenv("H30T_WIDGET_ENABLE");
+    const char *download_enable_env = std::getenv("H30T_DL_ENABLE");
+    const bool widget_config_required =
+        (widget_enable_env == nullptr || std::string(widget_enable_env) != "0")
+        || (download_enable_env != nullptr && std::string(download_enable_env) == "1");
+    if (widget_config_required) {
+        const char *widget_dir_env = std::getenv("H30T_WIDGET_DIR");
+        std::string widget_error;
+        if (!H30tWidget::InitUiConfig(widget_dir_env != nullptr ? widget_dir_env : "",
+                                      &widget_error)) {
+            USER_LOG_ERROR("[NODE][system_manager] widget ui config init failed: %s",
+                           widget_error.c_str());
+        }
+    }
 
     // 1. 启动 H30T 视频流；RTSP 服务器由外部服务负责运行
     if (!startH30tStream()) {
@@ -130,7 +150,7 @@ bool SystemManager::startH30tStream()
 {
     // USER_LOG_INFO("[NODE][system_manager] H30T stream start begin; external RTSP server is required");
     // 1. 确定 H30T 挂载位置
-    h30t_mount_ = 1;  // 默认挂载点 1
+    h30t_mount_ = 2;  // 默认挂载点 1
     const char *mount_env = std::getenv("H30T_MOUNT");
     if (mount_env) {
         int mount = std::atoi(mount_env);
@@ -174,6 +194,84 @@ bool SystemManager::startH30tStream()
 }
 
 // ============================================================================
+// H30T 原图下载服务
+// ============================================================================
+bool SystemManager::startH30tDownloader()
+{
+    const char *enable = std::getenv("H30T_DL_ENABLE");
+    if (enable == nullptr || std::string(enable) != "1") {
+        USER_LOG_INFO("[NODE][system_manager] H30T downloader disabled (H30T_DL_ENABLE != 1)");
+        return true;
+    }
+
+    if (!H30tWidget::UiConfigReady()) {
+        USER_LOG_ERROR("[NODE][system_manager] widget ui config is not ready; "
+                       "camera media download will fail with 0x000000E3");
+    }
+
+    H30tDownloadConfig config = h30t_download_config::LoadFromEnvironment();
+    if (std::getenv("H30T_DL_MOUNT") == nullptr) {
+        config.mount = h30t_mount_;  // 默认与视频流使用同一挂载点
+    }
+
+    h30t_downloader_ = std::unique_ptr<H30tDownloader>(new H30tDownloader(
+        [this](const std::string &cmd, const std::string &status,
+               const std::string &message) {
+            if (!mqtt_) return;
+            json ack;
+            ack["cmd"] = cmd;
+            ack["status"] = status;
+            ack["message"] = message;
+            ack["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";
+            mqtt_->publish("drone/" + drone_id_ + "/psdk/command/ack", ack.dump());
+        }));
+
+    std::string error;
+    if (!h30t_downloader_->Start(config, &error)) {
+        USER_LOG_ERROR("[NODE][system_manager] H30T downloader start failed: %s", error.c_str());
+        h30t_downloader_.reset();
+        return false;
+    }
+
+    if (cmd_exec_) {
+        cmd_exec_->SetH30tDownloader(h30t_downloader_.get());
+    }
+
+    // 自定义控件：把下载参数暴露到 Pilot 2（H30T_WIDGET_ENABLE=0 可关闭）
+    const char *widget_enable = std::getenv("H30T_WIDGET_ENABLE");
+    if (widget_enable == nullptr || std::string(widget_enable) != "0") {
+        const char *widget_dir = std::getenv("H30T_WIDGET_DIR");
+        h30t_widget_ = std::unique_ptr<H30tWidget>(new H30tWidget(
+            h30t_downloader_.get(), widget_dir != nullptr ? widget_dir : ""));
+        std::string widget_error;
+        if (!h30t_widget_->Start(&widget_error)) {
+            USER_LOG_WARN("[NODE][system_manager] H30T widget start failed: %s",
+                          widget_error.c_str());
+            h30t_widget_.reset();
+        }
+    }
+
+    USER_LOG_INFO("[NODE][system_manager] H30T downloader started, root=%s, incoming=%s",
+                  config.root_dir.c_str(), config.incoming_dir.c_str());
+    return true;
+}
+
+void SystemManager::stopH30tDownloader()
+{
+    if (!h30t_downloader_) return;
+    if (h30t_widget_) {
+        h30t_widget_->Stop();
+        h30t_widget_.reset();
+    }
+    if (cmd_exec_) {
+        cmd_exec_->SetH30tDownloader(nullptr);
+    }
+    h30t_downloader_->Shutdown();
+    h30t_downloader_.reset();
+    USER_LOG_INFO("H30T downloader stopped");
+}
+
+// ============================================================================
 // MQTT 依赖启动
 // ============================================================================
 bool SystemManager::startMqttDependencies()
@@ -201,6 +299,11 @@ bool SystemManager::startMqttDependencies()
     cmd_exec_ = std::unique_ptr<CommandExecutor>(new CommandExecutor(*mqtt_, cfg.drone_id));
     cmd_exec_->SetTelemetryPublisher(telemetry_.get());
     cmd_exec_->SetH30tStreamController(h30t_stream_.get());
+
+    // 3.1 可选：启动 H30T 原图下载服务（H30T_DL_ENABLE=1）
+    if (!startH30tDownloader()) {
+        USER_LOG_WARN("H30T downloader startup failed; download commands are disabled");
+    }
 
     if (!cmd_exec_->EnsureFlightControllerInited()) {
         USER_LOG_WARN("Flight controller initialization failed; local RTSP remains available");
@@ -290,13 +393,16 @@ void SystemManager::stopMqttDependencies()
         USER_LOG_INFO("FC subscription manager stopped");
     }
 
-    // 3. 清理命令执行器
+    // 3. 停止 H30T 原图下载服务（必须在 MQTT 关闭前，Ack 依赖 mqtt_）
+    stopH30tDownloader();
+
+    // 4. 清理命令执行器
     if (cmd_exec_) {
         cmd_exec_.reset();
         USER_LOG_INFO("CommandExecutor stopped");
     }
 
-    // 4. 断开 MQTT
+    // 5. 断开 MQTT
     if (mqtt_) {
         mqtt_->close();
         mqtt_.reset();

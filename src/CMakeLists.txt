@@ -131,7 +131,10 @@ set(OUTPUT_PACKAGE ${CMAKE_BINARY_DIR}/dpk)
 
 add_custom_command(TARGET ${PROJECT_NAME}
     POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/application/widget/widget_file"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/widget_file"
     COMMAND bash ${SCRIPT_FILE} -i ${JSON_FILE} -o ${OUTPUT_PACKAGE}
     DEPENDS ${JSON_FILE}
-    COMMENT "Running build_dpk.sh, generating .dpk app package from app.json file"
+    COMMENT "Copying widget resources and generating .dpk app package"
 )

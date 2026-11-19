@@ -1,0 +1,89 @@
+{
+    "version": {
+        "major": 1,
+        "minor": 0
+    },
+    "main_interface": {
+        "floating_window": {
+            "is_enable": true
+        },
+        "widget_list": [
+            {
+                "widget_index": 0,
+                "widget_type": "button",
+                "widget_name": "开始拍照",
+                "icon_file_set": {
+                    "icon_file_name_selected": "icon_shoot_start.png",
+                    "icon_file_name_unselected": "icon_shoot_start.png"
+                }
+            },
+            {
+                "widget_index": 1,
+                "widget_type": "button",
+                "widget_name": "停止拍照",
+                "icon_file_set": {
+                    "icon_file_name_selected": "icon_shoot_stop.png",
+                    "icon_file_name_unselected": "icon_shoot_stop.png"
+                }
+            },
+            {
+                "widget_index": 2,
+                "widget_type": "button",
+                "widget_name": "立即下载",
+                "icon_file_set": {
+                    "icon_file_name_selected": "icon_download.png",
+                    "icon_file_name_unselected": "icon_download.png"
+                }
+            },
+            {
+                "widget_index": 3,
+                "widget_type": "switch",
+                "widget_name": "下载后恢复拍照",
+                "icon_file_set": {
+                    "icon_file_name_selected": "icon_switch_on.png",
+                    "icon_file_name_unselected": "icon_switch_off.png"
+                }
+            },
+            {
+                "widget_index": 8,
+                "widget_type": "switch",
+                "widget_name": "周期下载",
+                "icon_file_set": {
+                    "icon_file_name_selected": "icon_switch_on.png",
+                    "icon_file_name_unselected": "icon_switch_off.png"
+                }
+            }
+        ]
+    },
+    "config_interface": {
+        "text_input_box": {
+            "widget_name": "文本输入框",
+            "placeholder_text": "预留",
+            "is_enable": false
+        },
+        "widget_list": [
+            {
+                "widget_index": 4,
+                "widget_type": "int_input_box",
+                "widget_name": "拍照间隔(秒)",
+                "int_input_box_hint": "unit:s"
+            },
+            {
+                "widget_index": 5,
+                "widget_type": "int_input_box",
+                "widget_name": "拍照镜头(1广角2变焦4红外,可相加)",
+                "int_input_box_hint": "0=相机当前设置;1-7=镜头组合"
+            },
+            {
+                "widget_index": 6,
+                "widget_type": "switch",
+                "widget_name": "落盘校验"
+            },
+            {
+                "widget_index": 7,
+                "widget_type": "switch",
+                "widget_name": "下载后归档"
+            }
+        ]
+    }
+}
