@@ -21,6 +21,7 @@ public:
     bool RequestStop();
     bool RequestStatus();
     bool RequestSource(H30tSource source);
+    void SetRgbFrameCallback(const H30tRgbFrameCallback &callback);
     void Shutdown();
     H30tControlState State() const;
 

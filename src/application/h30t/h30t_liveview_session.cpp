@@ -21,6 +21,7 @@ const E_DjiLiveViewCameraSource kImageSource = DJI_LIVEVIEW_CAMERA_SOURCE_DEFAUL
 std::mutex g_dispatch_mutex;
 // 回调必须共享管线生命周期，Detach 后才允许销毁对象。
 std::shared_ptr<H30tRgbStreamPipeline> g_rgb_pipeline;
+H30tRgbFrameCallback g_rgb_frame_callback;
 E_DjiLiveViewCameraPosition g_camera_position = DJI_LIVEVIEW_CAMERA_POSITION_NO_1;
 std::atomic<bool> g_rgb_format_logged(false);
 
@@ -37,10 +38,15 @@ void InfraredImageCallback(E_DjiLiveViewCameraPosition position,
                           static_cast<unsigned int>(image_info.frameId));
         }
         std::shared_ptr<H30tRgbStreamPipeline> pipeline;
+        H30tRgbFrameCallback rgb_frame_callback;
         { std::lock_guard<std::mutex> lock(g_dispatch_mutex);
           if (position != g_camera_position || image_info.pixFmt != PIXFMT_RGB_PACKED) return;
-          pipeline = g_rgb_pipeline; }
+          pipeline = g_rgb_pipeline;
+          rgb_frame_callback = g_rgb_frame_callback; }
         if (pipeline) pipeline->PushRgb(data, length, image_info.width, image_info.height);
+        if (rgb_frame_callback) {
+            rgb_frame_callback(data, length, image_info.width, image_info.height);
+        }
     } catch (...) { USER_LOG_ERROR("Unhandled exception in H30T RGB callback."); }
 }
 
@@ -99,10 +105,16 @@ public:
     std::shared_ptr<H30tRgbStreamPipeline> infrared;
     H30tStreamPipelineConfig pipeline_config;
     E_DjiCameraManagerStreamSource active_source;
+    H30tRgbFrameCallback rgb_frame_callback;
 };
 
 H30tLiveviewSession::H30tLiveviewSession() : impl_(new Impl) {}
 H30tLiveviewSession::~H30tLiveviewSession() { Stop(); }
+
+void H30tLiveviewSession::SetRgbFrameCallback(const H30tRgbFrameCallback &callback)
+{
+    impl_->rgb_frame_callback = callback;
+}
 
 bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
                                 std::string &error)
@@ -166,6 +178,10 @@ bool H30tLiveviewSession::Start(int mount, const H30tRtspConfig &config,
         error = "RGB RTSP pipeline initialization failed"; Stop(); return false;
     }
     Attach(impl_->infrared, impl_->camera);
+    {
+        std::lock_guard<std::mutex> lock(g_dispatch_mutex);
+        g_rgb_frame_callback = impl_->rgb_frame_callback;
+    }
     impl_->attached = true;
     g_rgb_format_logged.store(false);
     code = DjiLiveview_StartImageStream(impl_->camera, kImageSource, PIXFMT_RGB_PACKED, InfraredImageCallback);
@@ -212,7 +228,12 @@ bool H30tLiveviewSession::SwitchSource(H30tSource source)
 
 void H30tLiveviewSession::Stop()
 {
-    if (impl_->attached) { Detach(); impl_->attached = false; }
+    if (impl_->attached) {
+        Detach();
+        std::lock_guard<std::mutex> lock(g_dispatch_mutex);
+        g_rgb_frame_callback = H30tRgbFrameCallback();
+        impl_->attached = false;
+    }
     if (impl_->infrared_started) {
         DjiLiveview_StopImageStream(impl_->camera, kImageSource);
         impl_->infrared_started = false;

@@ -13,8 +13,12 @@ class CommandExecutor;
 class FcSubscriptionManager;
 class LandingDetector;
 class H30tStreamController;
+<<<<<<< HEAD
 class H30tDownloader;
 class H30tWidget;
+=======
+class H30tYoloService;
+>>>>>>> 56d8b0fd8be8e9ee8398903895292230f38a96df
 
 class SystemManager
 {
@@ -57,6 +61,8 @@ private:
      * @return true 成功，false 失败
      */
     bool startH30tStream();
+    bool startYolo();
+    void stopYolo();
 
     /**
      * @brief 启动 MQTT 依赖的服务（在 MQTT 连接成功后调用）
@@ -96,6 +102,7 @@ private:
 
     // === H30T 视频流控制 ===
     std::unique_ptr<H30tStreamController> h30t_stream_;
+<<<<<<< HEAD
     int h30t_mount_ = 2;  // 默认挂载点 1
 
     // === H30T 原图下载服务 ===
@@ -103,6 +110,10 @@ private:
 
     // === H30T 下载参数自定义控件（Pilot 2） ===
     std::unique_ptr<H30tWidget> h30t_widget_;
+=======
+    std::shared_ptr<H30tYoloService> yolo_;
+    int h30t_mount_ = 1;  // 默认挂载点 1
+>>>>>>> 56d8b0fd8be8e9ee8398903895292230f38a96df
 
     std::atomic<bool> running_{false};
     std::string drone_id_;

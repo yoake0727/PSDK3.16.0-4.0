@@ -82,6 +82,7 @@ bool MqttBridge::publish(const std::string &topic, const std::string &payload, i
     {
         std::cerr << "[MQTT] publish failed: " << mosquitto_strerror(rc) << "\n";
     }
+    return rc == MOSQ_ERR_SUCCESS;
 }
 
 void MqttBridge::close()

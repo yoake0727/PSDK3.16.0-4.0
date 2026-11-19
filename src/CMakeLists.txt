@@ -36,6 +36,8 @@ file(GLOB_RECURSE MODULE_COMMON_SRC
     )
 file(GLOB_RECURSE MODULE_HAL_SRC hal/*.c*)
 file(GLOB_RECURSE MODULE_APP_SRC application/*.c*)
+file(GLOB_RECURSE MODULE_YOLO_SRC application/yolo/*.c*)
+list(REMOVE_ITEM MODULE_APP_SRC ${MODULE_YOLO_SRC})
 list(REMOVE_ITEM MODULE_APP_SRC "${CMAKE_CURRENT_SOURCE_DIR}/application/main2.cpp")
 
 set(TOOLCHAIN_NAME aarch64-linux-gnu-gcc)
@@ -77,6 +79,7 @@ link_libraries(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/lib/${TOOLCHAIN_NAME}/libpa
 
 add_executable(${PROJECT_NAME}
         ${MODULE_APP_SRC}
+        ${MODULE_YOLO_SRC}
         ${MODULE_SAMPLE_SRC}
         ${MODULE_COMMON_SRC}
         ${MODULE_HAL_SRC})
@@ -84,7 +87,7 @@ add_executable(${PROJECT_NAME}
 include_directories(${CMAKE_CURRENT_LIST_DIR}/../psdk_lib/include)
 
 # Try to see if user has OpenCV installed
-find_package(OpenCV QUIET)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc dnn)
 if (OpenCV_FOUND)
     message("\n${PROJECT_NAME}...")
     message(STATUS "Found OpenCV installed in the system, will use it to display image in AdvancedSensing APIs")
@@ -136,5 +139,9 @@ add_custom_command(TARGET ${PROJECT_NAME}
             "$<TARGET_FILE_DIR:${PROJECT_NAME}>/widget_file"
     COMMAND bash ${SCRIPT_FILE} -i ${JSON_FILE} -o ${OUTPUT_PACKAGE}
     DEPENDS ${JSON_FILE}
+<<<<<<< HEAD
     COMMENT "Copying widget resources and generating .dpk app package"
+=======
+    COMMENT "Running build_dpk.sh, generating .dpk app package from app.json file"
+>>>>>>> 56d8b0fd8be8e9ee8398903895292230f38a96df
 )
