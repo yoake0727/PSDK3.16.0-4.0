@@ -1,6 +1,6 @@
 /**
  * @file telemetry_pos_publisher.h
- * @brief 位置/姿态高频发布器（50Hz），独立 NTP 同步
+ * @brief 位置/姿态高频发布器（50Hz），统一使用系统时间
  */
 
 #pragma once
@@ -36,7 +36,7 @@ public:
     explicit TelemetryPosPublisher(MqttBridge &mqtt);
     ~TelemetryPosPublisher();
 
-    // 启动 50Hz 发布线程和 NTP 同步线程
+    // 启动 50Hz 发布线程
     void start();
 
     // 停止所有线程
@@ -72,18 +72,8 @@ private:
     // 发布一次快照（构造 JSON 并发送）
     void publishPos();
 
-    // NTP 同步循环
-    void syncLoop();
-
-    // 执行一次 NTP 请求
-    bool fetchNtpOffset(const std::string &server, double &offset);
-
-    // 获取当前 UTC 时间戳（秒，浮点）
-    double getCurrentNtpTimestamp();
-
-    // 辅助：当前毫秒（系统时间）
+    // 辅助：当前毫秒（妙算3系统时间，统一时间基准）
     static uint64_t nowMs();
-    static uint64_t monotonicMs();
 
 private:
     MqttBridge &mqtt_;
@@ -94,15 +84,7 @@ private:
     std::thread pub_thread_;
     std::atomic<bool> running_{false};
 
-    // NTP 相关
-    std::thread sync_thread_;
-    std::atomic<bool> sync_running_{false};
-    std::mutex offset_mutex_;
-    double ntp_offset_sec_ = 0.0;
-    bool ntp_initialized_ = false;
-    std::string ntp_server_ = "192.168.144.130"; // 可改为从配置文件读取
     Localizer *localizer_ = nullptr;
 
-    static constexpr int SYNC_INTERVAL_SEC = 30;
     static constexpr int PUBLISH_INTERVAL_MS = 20; // 50Hz = 20ms
 };

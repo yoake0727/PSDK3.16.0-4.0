@@ -132,6 +132,7 @@ Localizer::Localizer(const std::string &droneId, const std::string &configPath)
  * - 加锁保护 telemetry_history_
  * - 超过 500 条弹出最旧（约 50 秒 @10Hz）
  * - 由 TelemetryPosPublisher 的飞控回调线程调用（异步）
+ * - timestamp_ms 为妙算3系统时间，与帧时间戳同源
  */
 void Localizer::updateTelemetry(const LocalizerTelemetry &sample) {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -143,7 +144,7 @@ void Localizer::updateTelemetry(const LocalizerTelemetry &sample) {
  * 在遥测缓存中查找与 ts 时间最近的一条样本。
  *
  * 参数：
- *   ts    : 目标时间戳（单调时钟毫秒）
+ *   ts    : 目标时间戳（妙算3系统时间毫秒）
  *   out   : 输出，最近的一条遥测（即使返回 false 也有效）
  *   diff  : 输出，最近样本与 ts 的绝对时间差（毫秒）
  *
@@ -197,8 +198,8 @@ bool Localizer::processDetectionJson(const std::string &payload, std::string &lo
         const json input = json::parse(payload);
         if (!input.contains("detections") || !input["detections"].is_array()) return false;
 
-        // frameTime 用单调时钟，与遥测缓存的 timestamp_ms 同源，可比较
-        const uint64_t frameTime = input.value("monotonicTimestampMs", uint64_t(0));
+        // 帧对齐用妙算3系统时间，与遥测缓存 timestamp_ms（同为系统时间）可比较
+        const uint64_t frameTime = input.value("timestampMs", uint64_t(0));
 
         // ---- 2. 查最近遥测 ----
         // 失败直接返回，不推进 tracker（隐患：遥测缺失期间轨迹不老化）
