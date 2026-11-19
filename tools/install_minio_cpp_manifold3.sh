@@ -4,7 +4,7 @@ prefix="${1:-$PWD/third_party/aarch64}"
 src="${MINIOCPP_SOURCE_DIR:?set MINIOCPP_SOURCE_DIR to a minio-cpp checkout}"
 
 patch_file="$PWD/tools/zstd_alias_patch.cmake"
-httplib_src="/home/dji/cpp-httplib-old/cpp-httplib-0.11.4"
+httplib_src="/home/dji/src/cpp-httplib-old/cpp-httplib-0.11.4"
 
 # OpenSSL 3 装到用户目录
 openssl3_prefix="/home/dji/openssl-3"

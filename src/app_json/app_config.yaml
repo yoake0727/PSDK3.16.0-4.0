@@ -17,7 +17,7 @@ mqtt.client_id: M400_MANIFOLD3       # 客户端 ID（同一 Broker 必须唯一
 mqtt.drone_id: 1581FBDBW256500A2NXJ  # 无人机 ID（用于拼 topic）
 
 # ---------- H30T 相机 ----------
-h30t.mount: 3                        # 挂载口编号（1/2/3）
+h30t.mount: 2                        # 挂载口编号（1/2/3）
 h30t.rtsp.url: rtsp://127.0.0.1:8554/h30t  # 本地 MediaMTX 转发地址
 h30t.rtsp.transport: tcp             # RTSP 传输协议（tcp 稳，udp 延迟低）
 h30t.rtsp.max_queue_bytes: 4194304   # 推流管线最大队列（4MB）

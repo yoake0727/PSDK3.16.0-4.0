@@ -30,7 +30,10 @@
 #include <dji_core.h>
 #include <dji_aircraft_info.h>
 #include <csignal>
+#include <cstdlib>
+#include <string>
 #include "dji_sdk_config.h"
+#include "widget/h30t_widget.hpp"
 
 #include "../common/osal/osal.h"
 #include "../common/osal/osal_fs.h"
@@ -248,6 +251,22 @@ void Application::DjiUser_ApplicationStart()
         throw std::runtime_error("Set serial number error");
     }
 
+    const char *widget_enable = std::getenv("H30T_WIDGET_ENABLE");
+    const char *download_enable = std::getenv("H30T_DL_ENABLE");
+    const bool widget_config_required =
+        (widget_enable == nullptr || std::string(widget_enable) != "0")
+        || (download_enable != nullptr && std::string(download_enable) == "1");
+    if (widget_config_required) {
+        std::string widget_error;
+        if (!H30tWidget::InitUiConfig(std::string(), &widget_error)) {
+            USER_LOG_ERROR("[NODE][application] widget ui config init failed: %s",
+                           widget_error.c_str());
+        } else if (!H30tWidget::RegisterHandlers(&widget_error)) {
+            USER_LOG_ERROR("[NODE][application] widget handler registration failed: %s",
+                           widget_error.c_str());
+        }
+    }
+
     /*returnCode = DjiTest_WidgetStartService();
     if (returnCode != DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
         USER_LOG_ERROR("widget sample init error");
@@ -275,8 +294,7 @@ void Application::DjiUser_ApplicationStart()
 
 T_DjiReturnCode Application::DjiUser_PrintConsole(const uint8_t *data, uint16_t dataLen)
 {
-    USER_LOG_INFO("%s", data);
-
+    printf("%s", data);
     return DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS;
 }
 

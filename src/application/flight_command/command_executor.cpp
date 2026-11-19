@@ -5,6 +5,7 @@
 
 #include "command_executor.hpp"
 #include "h30t/h30t_stream_controller.hpp"
+#include "downloader/h30t_downloader.hpp"
 #include "mqtt/telemetry_publisher.hpp"
 #include "dji_logger.h"
 #include "dji_platform.h"
@@ -103,6 +104,11 @@ void CommandExecutor::SetH30tStreamController(H30tStreamController *controller)
     USER_LOG_INFO("H30T stream controller set for CommandExecutor");
 }
 
+void CommandExecutor::SetH30tDownloader(H30tDownloader *downloader)
+{
+    h30t_downloader_ = downloader;
+}
+
 // -------------------- 入队命令 --------------------
 void CommandExecutor::EnqueueFlightCommand(const FlightCommand &cmd)
 {
@@ -197,6 +203,21 @@ void CommandExecutor::HandleMqttCommand(const std::string &topic, const std::str
         else if (source == "infrared") selected = H30tSource::kInfrared;
         else { publish_ack(cmd, "error", "source must be wide, zoom, or infrared"); return; }
         if (!h30t_stream_controller_->RequestSource(selected)) publish_ack(cmd, "error", "source request rejected");
+        return;
+    }
+
+    if (cmd == "h30t_download_start" || cmd == "h30t_download_stop"
+        || cmd == "h30t_download_now" || cmd == "h30t_download_status") {
+        if (!h30t_downloader_) {
+            publish_ack(cmd, "error", "H30T downloader is not enabled");
+            return;
+        }
+        bool accepted = false;
+        if (cmd == "h30t_download_start") accepted = h30t_downloader_->RequestStartShoot();
+        else if (cmd == "h30t_download_stop") accepted = h30t_downloader_->RequestStopShoot();
+        else if (cmd == "h30t_download_now") accepted = h30t_downloader_->RequestDownloadOnce();
+        else accepted = h30t_downloader_->RequestStatus();
+        if (!accepted) publish_ack(cmd, "error", "downloader request rejected");
         return;
     }
 

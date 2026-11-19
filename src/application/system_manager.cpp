@@ -13,6 +13,9 @@
 #include "h30t/h30t_stream_controller.hpp"
 #include "h30t/h30t_config.hpp"
 #include "h30t/h30t_rgb_stream_pipeline.hpp"
+#include "downloader/h30t_downloader.hpp"
+#include "downloader/download_config.hpp"
+#include "widget/h30t_widget.hpp"
 #include "local/video_file_source.hpp"
 #include "yolo/h30t_yolo_service.hpp"
 #include "local/localizer.hpp"
@@ -112,6 +115,9 @@ bool SystemManager::init()
         USER_LOG_ERROR("H30T stream startup failed; continuing in degraded mode");
     }
     if (cmd_exec_) cmd_exec_->SetH30tStreamController(h30t_stream_.get());
+    if (!startH30tDownloader()) {
+        USER_LOG_WARN("H30T downloader startup failed; remote capture controls are unavailable");
+    }
     running_ = true;
     return true;
 }
@@ -121,13 +127,23 @@ bool SystemManager::init()
 // ============================================================================
 bool SystemManager::startH30tStream()
 {
+    USER_LOG_INFO("[H30T] startH30tStream: enter");                          // 进入函数
+
     const AppConfig &app=AppConfig::Instance();   // 取全局配置单例，后续读配置项
 
+    // 读取视频输入模式
+    const std::string input_mode = app.String("video.input_mode");
+    USER_LOG_INFO("[H30T] video.input_mode = '%s'", input_mode.c_str());     // 打印模式
+
     // 若配置 video.input_mode == "local_file"，走"本地视频文件"分支
-    if(app.String("video.input_mode")=="local_file") {
+    if(input_mode=="local_file") {
+
+        USER_LOG_INFO("[H30T] branch: local_file");
 
         // 读取配置里指定的相机源字符串
         const std::string source=app.String("video.camera_source");
+        USER_LOG_INFO("[H30T] video.camera_source = '%s'", source.c_str());
+
         uint8_t camera_source=0;   // 用于存放映射后的 PSDK 相机源枚举值
 
         // 将配置字符串映射为 PSDK 的相机源枚举
@@ -139,19 +155,24 @@ bool SystemManager::startH30tStream()
             camera_source=static_cast<uint8_t>(DJI_CAMERA_MANAGER_SOURCE_WIDE_CAM);   // 广角相机
         else {
             // 配置值不在支持列表内，报错并返回失败
-            USER_LOG_ERROR("Invalid video.camera_source");
+            USER_LOG_ERROR("[H30T] Invalid video.camera_source: '%s'", source.c_str());
             return false;
         }
 
         // 初始化 PSDK Liveview（图传）模块，失败则报错返回
+        USER_LOG_INFO("[H30T] step1: DjiLiveview_Init ...");
         if(DjiLiveview_Init()!=DJI_ERROR_SYSTEM_MODULE_CODE_SUCCESS) {
-            USER_LOG_ERROR("DjiLiveview_Init failed for local video");
+            USER_LOG_ERROR("[H30T] step1 FAILED: DjiLiveview_Init failed");
             return false;
         }
         local_liveview_initialized_=true;   // 标记 Liveview 已初始化，便于后续反初始化
+        USER_LOG_INFO("[H30T] step1 OK: DjiLiveview_Init");
 
         // 加载 H30T 的 RTSP 配置（URL、传输方式、缓冲上限）
         const H30tRtspConfig rtsp=h30t_config::LoadRtspConfig();
+        USER_LOG_INFO("[H30T] rtsp_url = %s, transport = %s, max_queue = %zu",
+                      h30t_config::RedactRtspUrl(rtsp.rtsp_url).c_str(),
+                      rtsp.transport.c_str(), rtsp.max_queue_bytes);
 
         // 组装视频管线配置：RTSP 地址、传输协议、最大队列字节数
         H30tStreamPipelineConfig output;
@@ -163,23 +184,24 @@ bool SystemManager::startH30tStream()
         local_video_pipeline_=std::unique_ptr<H30tRgbStreamPipeline>(new H30tRgbStreamPipeline());
 
         // 启动管线；失败则回滚（反初始化 Liveview、释放管线）并返回失败
+        USER_LOG_INFO("[H30T] step2: local_video_pipeline_->Start ...");
         if(!local_video_pipeline_->Start(output)) {
+            USER_LOG_ERROR("[H30T] step2 FAILED: RGB RTSP pipeline Start");
             DjiLiveview_Deinit();
             local_liveview_initialized_=false;
             local_video_pipeline_.reset();
             return false;
         }
+        USER_LOG_INFO("[H30T] step2 OK: RGB RTSP pipeline started");
 
         // 创建本地视频文件源对象，负责从文件逐帧读取
         video_input_=std::unique_ptr<VideoFileSource>(new VideoFileSource());
         std::string error;   // 用于接收启动失败时的错误信息
 
-        // 启动视频文件源：
-        //   - video.file_path：视频文件路径
-        //   - camera_source：相机源
-        //   - video.loop=="true"：是否循环播放
-        //   - 帧回调：每读到一帧就交给 YOLO 检测（若 yolo_ 存在）
-        // 失败则回滚所有已启动组件并返回失败
+        // 启动视频文件源
+        USER_LOG_INFO("[H30T] step3: video_input_->Start, file='%s', loop=%s",
+                      app.String("video.file_path").c_str(),
+                      app.String("video.loop").c_str());
         if(!video_input_->Start(app.String("video.file_path"),
                                 camera_source,
                                 app.String("video.loop")=="true",
@@ -187,9 +209,9 @@ bool SystemManager::startH30tStream()
                                     const H30tFrameMetadata&m){
                                     if(yolo_) yolo_->SubmitRgbFrame(d,n,w,h,m);   // 提交 RGB 帧给 YOLO
                                 },
-                                error)) 
+                                error))
         {
-            USER_LOG_ERROR("Local video start failed: %s",error.c_str());
+            USER_LOG_ERROR("[H30T] step3 FAILED: Local video start: %s", error.c_str());
             local_video_pipeline_->Stop();
             local_video_pipeline_.reset();
             DjiLiveview_Deinit();
@@ -198,22 +220,26 @@ bool SystemManager::startH30tStream()
         }
 
         // 成功：本地视频输入已启动，H30T 实时图传被禁用
-        USER_LOG_INFO("Local video input started; H30T image stream is disabled");
+        USER_LOG_INFO("[H30T] step3 OK: Local video input started; H30T image stream is disabled");
         return true;
     }
 
     // ========== 分支二：H30T 实时流模式 ==========
-    // 走到这里说明 video.input_mode != "local_file"，使用 H30T 实时图传
+    USER_LOG_INFO("[H30T] branch: realtime H30T stream");
 
     // 1. 确定 H30T 挂载位置（如挂载点 3，来自配置 h30t.mount）
     h30t_mount_ = AppConfig::Instance().Int("h30t.mount");
+    USER_LOG_INFO("[H30T] h30t.mount = %d", h30t_mount_);
 
     // 2. 启动 H30T 流控制器
+    USER_LOG_INFO("[H30T] step1: create H30tStreamController ...");
     h30t_stream_ = std::unique_ptr<H30tStreamController>(
         new H30tStreamController(
             [this](const std::string &cmd, const std::string &status,
                    const std::string &message) {
                 // H30T 状态回调：把命令执行状态通过 MQTT 发 ACK 给地面端
+                USER_LOG_INFO("[H30T] controller cb: cmd=%s status=%s msg=%s",
+                              cmd.c_str(), status.c_str(), message.c_str());
                 if (!mqtt_) return;                      // MQTT 未就绪则不发
                 json ack;
                 ack["cmd"] = cmd;                        // 命令名
@@ -222,30 +248,41 @@ bool SystemManager::startH30tStream()
                 ack["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";  // 当前架次号
                 mqtt_->publish("drone/" + drone_id_ + "/psdk/command/ack", ack.dump());
             }));
+    USER_LOG_INFO("[H30T] step1 OK: H30tStreamController created");
 
     // 1. 拷贝 YOLO 服务的 shared_ptr，供回调捕获（避免 this 失效）
     const std::shared_ptr<H30tYoloService> yolo = yolo_;
+    USER_LOG_INFO("[H30T] yolo_ is %s", yolo ? "set" : "NULL");
 
     // 2. 设置 RGB 帧回调：每收到一帧就提交给 YOLO 检测
+    USER_LOG_INFO("[H30T] step2: SetRgbFrameCallback ...");
     h30t_stream_->SetRgbFrameCallback(
         [yolo](const uint8_t *data, uint32_t length, uint16_t width, uint16_t height,
                const H30tFrameMetadata &metadata) {
             if (yolo) yolo->SubmitRgbFrame(data, length, width, height, metadata);
         });
+    USER_LOG_INFO("[H30T] step2 OK: RGB frame callback set");
 
     // 启动流控制器的工作线程（负责拉流、解码、分发帧）
+    USER_LOG_INFO("[H30T] step3: StartWorker ...");
     if (!h30t_stream_->StartWorker()) {
-        USER_LOG_ERROR("H30T worker thread start failed");
+        USER_LOG_ERROR("[H30T] step3 FAILED: H30T worker thread start");
         h30t_stream_.reset();
         return false;
     }
+    USER_LOG_INFO("[H30T] step3 OK: H30T worker thread started");
 
     // 请求开始 H30T 流（在指定挂载点上）
+    USER_LOG_INFO("[H30T] step4: RequestStart(mount=%d) ...", h30t_mount_);
     if (!h30t_stream_->RequestStart(h30t_mount_)) {
+        USER_LOG_ERROR("[H30T] step4 FAILED: RequestStart(mount=%d)", h30t_mount_);
         h30t_stream_->Shutdown();
         h30t_stream_.reset();
         return false;
     }
+    USER_LOG_INFO("[H30T] step4 OK: H30T dual stream start requested on mount %d", h30t_mount_);
+
+    USER_LOG_INFO("[H30T] startH30tStream: success");
     return true;
 }
 
@@ -381,6 +418,67 @@ bool SystemManager::startMqttDependencies()
 // ============================================================================
 // H30T 停止
 // ============================================================================
+bool SystemManager::startH30tDownloader()
+{
+    const char *enable = std::getenv("H30T_DL_ENABLE");
+    if (enable == nullptr || std::string(enable) != "1") {
+        USER_LOG_INFO("H30T downloader disabled (H30T_DL_ENABLE != 1)");
+        return true;
+    }
+    if (!h30t_stream_) {
+        USER_LOG_ERROR("H30T downloader requires the H30T camera stream to be initialized");
+        return false;
+    }
+
+    H30tDownloadConfig config = h30t_download_config::LoadFromEnvironment();
+    if (std::getenv("H30T_DL_MOUNT") == nullptr) config.mount = h30t_mount_;
+    h30t_downloader_.reset(new H30tDownloader(
+        [this](const std::string &cmd, const std::string &status,
+               const std::string &message) {
+            if (!mqtt_) return;
+            json ack;
+            ack["cmd"] = cmd;
+            ack["status"] = status;
+            ack["message"] = message;
+            ack["flightId"] = cmd_exec_ ? cmd_exec_->GetCurrentFlightId() : "";
+            mqtt_->publish("drone/" + drone_id_ + "/psdk/command/ack", ack.dump());
+        }));
+
+    std::string error;
+    if (!h30t_downloader_->Start(config, &error)) {
+        USER_LOG_ERROR("H30T downloader start failed: %s", error.c_str());
+        h30t_downloader_.reset();
+        return false;
+    }
+    if (cmd_exec_) cmd_exec_->SetH30tDownloader(h30t_downloader_.get());
+
+    const char *widget_enable = std::getenv("H30T_WIDGET_ENABLE");
+    if (widget_enable == nullptr || std::string(widget_enable) != "0") {
+        const char *widget_dir = std::getenv("H30T_WIDGET_DIR");
+        h30t_widget_.reset(new H30tWidget(
+            h30t_downloader_.get(), widget_dir != nullptr ? widget_dir : ""));
+        if (!h30t_widget_->Start(&error)) {
+            USER_LOG_ERROR("H30T widget start failed: %s", error.c_str());
+            h30t_widget_.reset();
+        }
+    }
+    USER_LOG_INFO("H30T downloader started; waiting for remote control input");
+    return true;
+}
+
+void SystemManager::stopH30tDownloader()
+{
+    if (h30t_widget_) {
+        h30t_widget_->Stop();
+        h30t_widget_.reset();
+    }
+    if (cmd_exec_) cmd_exec_->SetH30tDownloader(nullptr);
+    if (h30t_downloader_) {
+        h30t_downloader_->Shutdown();
+        h30t_downloader_.reset();
+    }
+}
+
 void SystemManager::stopH30tStream()
 {
     if(video_input_) { video_input_->Stop(); video_input_.reset(); }
@@ -442,9 +540,10 @@ void SystemManager::shutdown()
     if (!running_.exchange(false))
         return;
     // 按依赖顺序逆向停止
-    stopH30tStream();
     stopYolo();
+    stopH30tDownloader();
     stopMqttDependencies();
+    stopH30tStream();
     g_sys_mgr_for_log = nullptr;
     USER_LOG_INFO("shutdown complete");
 }

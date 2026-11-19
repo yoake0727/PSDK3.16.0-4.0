@@ -13,6 +13,8 @@ class CommandExecutor;
 class FcSubscriptionManager;
 class LandingDetector;
 class H30tStreamController;
+class H30tDownloader;
+class H30tWidget;
 class H30tYoloService;
 class Localizer;
 class MinioUploader;
@@ -54,6 +56,7 @@ private:
      * @return true 成功，false 失败
      */
     bool startH30tStream();
+    bool startH30tDownloader();
     bool startYolo();
     void stopYolo();
 
@@ -67,6 +70,7 @@ private:
      * @brief 停止 H30T 视频流
      */
     void stopH30tStream();
+    void stopH30tDownloader();
 
     /**
      * @brief 停止 MQTT 依赖的服务
@@ -84,6 +88,8 @@ private:
 
     // === H30T 视频流控制 ===
     std::unique_ptr<H30tStreamController> h30t_stream_;
+    std::unique_ptr<H30tDownloader> h30t_downloader_;
+    std::unique_ptr<H30tWidget> h30t_widget_;
     std::shared_ptr<H30tYoloService> yolo_;
     std::unique_ptr<Localizer> localizer_;
     std::unique_ptr<MinioUploader> minio_uploader_;

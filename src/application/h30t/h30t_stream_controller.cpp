@@ -99,18 +99,27 @@ private:
         }
     }
 
-    bool StartSession(int mount)
-    {
-        queue_.SetState(H30tControlState::kStarting);
-        const H30tRtspConfig config = h30t_config::LoadRtspConfig();
-        if (!h30t_config::ValidateRtspConfig(config))
-            return FailStart("invalid or missing single RTSP URL");
-        std::string error;
-        if (!session_.Start(mount, config, error)) return FailStart(error);
-        queue_.SetState(H30tControlState::kRunning);
-        Ack("h30t_stream_start", "ok", "H30T RGB RTSP stream started");
-        return true;
+bool StartSession(int mount)
+{
+    USER_LOG_INFO("[H30T-CTRL] StartSession: mount=%d", mount);
+    queue_.SetState(H30tControlState::kStarting);
+    const H30tRtspConfig config = h30t_config::LoadRtspConfig();
+    USER_LOG_INFO("[H30T-CTRL] rtsp_url=%s", h30t_config::RedactRtspUrl(config.rtsp_url).c_str());
+    if (!h30t_config::ValidateRtspConfig(config)) {
+        USER_LOG_ERROR("[H30T-CTRL] invalid RTSP config");
+        return FailStart("invalid or missing single RTSP URL");
     }
+    std::string error;
+    USER_LOG_INFO("[H30T-CTRL] calling session_.Start(mount=%d) ...", mount);
+    if (!session_.Start(mount, config, error)) {
+        USER_LOG_ERROR("[H30T-CTRL] session_.Start failed: %s", error.c_str());
+        return FailStart(error);
+    }
+    USER_LOG_INFO("[H30T-CTRL] session_.Start OK");
+    queue_.SetState(H30tControlState::kRunning);
+    Ack("h30t_stream_start", "ok", "H30T RGB RTSP stream started");
+    return true;
+}
 
     bool FailStart(const std::string &message)
     {

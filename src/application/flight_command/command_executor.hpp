@@ -23,6 +23,7 @@
 // 前向声明
 class TelemetryPublisher;
 class H30tStreamController; 
+class H30tDownloader;
 
 // 命令类型枚举（与原版一致）
 enum class FlightCommandType
@@ -80,6 +81,7 @@ public:
     void SetTelemetryPublisher(TelemetryPublisher *tp);
     // 新增：设置 H30T 流控制器（用于 H30T 相关命令）
     void SetH30tStreamController(H30tStreamController *controller);
+    void SetH30tDownloader(H30tDownloader *downloader);
 
     // 外部调用入口：解析 MQTT 命令并入队（在 MQTT 回调线程中调用）
     void HandleMqttCommand(const std::string &topic, const std::string &payload);
@@ -126,6 +128,7 @@ private:
 
     // ⭐ 新增：H30T 流控制器（原始指针，生命周期由 SystemManager 管理）
     H30tStreamController *h30t_stream_controller_ = nullptr;
+    H30tDownloader *h30t_downloader_ = nullptr;
     GimbalController gimbal_controller_;
     // 工作线程与队列
     std::thread flight_worker_;

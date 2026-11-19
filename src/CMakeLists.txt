@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13.4)
+cmake_minimum_required(VERSION 3.16)
 
 project(psdk_payload_app CXX)
 
@@ -39,12 +39,12 @@ set(STATIC_DEPS_ROOT "${REPOSITORY_ROOT}/third_party/aarch64")
 set(STATIC_DEPS_INCLUDE_DIR "${STATIC_DEPS_ROOT}/include")
 set(STATIC_DEPS_LIBRARY_DIR "${STATIC_DEPS_ROOT}/lib")
 
-# »√ find_package ‘⁄ third_party/aarch64 ¿Ô’“ miniocpp ∫Õ httplib
+# ËÆ© find_package Âú® third_party/aarch64 ÈáåÊâæ miniocpp Âíå httplib
 list(APPEND CMAKE_PREFIX_PATH "${STATIC_DEPS_ROOT}")
 set(httplib_DIR "${STATIC_DEPS_ROOT}/lib/cmake/httplib")
 set(miniocpp_DIR "${STATIC_DEPS_ROOT}/lib/cmake/miniocpp")
 
-# ---- –ﬁ∏¥ zstd ±√˚≥ÂÕª ----
+# ---- ‰øÆÂ§ç zstd Âà´ÂêçÂÜ≤Á™Å ----
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(zstd REQUIRED IMPORTED_TARGET libzstd)
 set_property(TARGET PkgConfig::zstd PROPERTY IMPORTED_GLOBAL TRUE)
@@ -153,7 +153,10 @@ set(OUTPUT_PACKAGE ${CMAKE_BINARY_DIR}/dpk)
 
 add_custom_command(TARGET ${PROJECT_NAME}
     POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_CURRENT_SOURCE_DIR}/application/widget/widget_file"
+            "$<TARGET_FILE_DIR:${PROJECT_NAME}>/widget_file"
     COMMAND bash ${SCRIPT_FILE} -i ${JSON_FILE} -o ${OUTPUT_PACKAGE}
     DEPENDS ${JSON_FILE}
-    COMMENT "Running build_dpk.sh, generating .dpk app package from app.json file"
+    COMMENT "Copying widget resources and generating .dpk app package"
 )

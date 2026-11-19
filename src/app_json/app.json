@@ -46,6 +46,7 @@
     "bin": "../../build/bin/psdk_payload_app",
     "userconfig": [
         "../application/yolo/runtime/best.engine",
-        "../application/yolo/runtime/best.names"
+        "../application/yolo/runtime/best.names",
+        "../application/widget/widget_file"
     ]
 }
